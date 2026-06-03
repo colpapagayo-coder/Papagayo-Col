@@ -1,16 +1,253 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import * as d3 from 'd3';
+import { Map as MapIcon, Info } from 'lucide-react';
 
-export function ColombiaMap({ activeDepartment, onSelectDepartment }: any) {
+const departmentData: Record<string, string> = {
+  "BOGOTÁ, D.C.": "La vibrante capital del país y el mayor centro de negocios. Concentra gran parte de la oferta inmobiliaria corporativa y residencial de alto valor, destacando zonas como Chicó, Rosales y el centro histórico.",
+  "ANTIOQUIA": "Hogar de la cultura paisa. Medellín se destaca como un hub de innovación tecnológica y turismo, con un mercado inmobiliario en pleno auge, atrayendo nómadas digitales e inversionistas.",
+  "VALLE DEL CAUCA": "Polo de desarrollo del suroccidente colombiano. Cali es famosa por su cultura salsera y su fuerte industria azucarera, conectando al país con el pacífico a través del puerto de Buenaventura.",
+  "CUNDINAMARCA": "Rodea a la capital y ofrece un mercado de bienes raíces campestres en gran expansión, con hermosos paisajes de la sabana y pueblos coloniales como Villa de Leyva (cercano) y Zipaquirá.",
+  "BOLÍVAR": "El epicentro del turismo en Colombia. Cartagena de Indias ofrece inmuebles exclusivos en su Ciudad Amurallada y modernos apartamentos con vista al mar en Bocagrande y Castillogrande.",
+  "ATLÁNTICO": "Barranquilla, la 'Puerta de Oro', vive un renacimiento urbano y comercial. Es un punto estratégico para el comercio internacional y la industria inmobiliaria en la costa Caribe.",
+  "SANTANDER": "Tierra de imponentes paisajes como el Cañón del Chicamocha. Bucaramanga, la 'Ciudad de los Parques', es reconocida por su excelente calidad de vida y crecimiento inmobiliario ordenado.",
+  "MAGDALENA": "Hogar de Santa Marta, la ciudad más antigua de Colombia. Combina la belleza de la Sierra Nevada con el Mar Caribe, atrayendo inversiones para turismo ecológico y residencias de descanso.",
+  "QUINDÍO": "El corazón del Eje Cafetero. Con sus paisajes verdes y parques temáticos, es ideal para proyectos de ecoturismo y fincas cafeteras tradicionales.",
+  "RISARALDA": "Pereira es un punto de conexión clave en el Eje Cafetero, con un fuerte comercio y proyectos de vivienda moderna impulsados por su estratégica ubicación.",
+  "CALDAS": "Manizales, la ciudad de las puertas abiertas, destaca por su ambiente universitario, sus montañas y una oferta de vivienda muy apetecida por su tranquilidad.",
+  "TOLIMA": "Ubicado en el centro del país, Ibagué, la 'Capital Musical', sirve como despensa agrícola y punto de conexión clave entre el centro y el occidente del país.",
+  "BOYACÁ": "Conocido por su tranquilidad, seguridad y hermosos pueblos históricos. Tunja y sus alrededores ofrecen un estilo de vida apacible y un mercado inmobiliario asequible.",
+  "META": "La puerta a los Llanos Orientales. Villavicencio lidera la región en ganadería, agricultura y un creciente mercado de condomiños campestres.",
+  "SAN ANDRÉS Y PROVIDENCIA": "Un paraíso caribeño conocido por su 'mar de los siete colores'. Su mercado se centra casi exclusivamente en turismo vacacional y hotelería.",
+  "DEFAULT": "Una hermosa región de Colombia con gran riqueza natural, diversidad cultural y excelentes oportunidades emergentes de desarrollo e inversión."
+};
+
+function getDepartmentInfo(name?: string) {
+  if (!name) return departmentData["DEFAULT"];
+  let cleanName = name.toUpperCase().trim();
+  if (cleanName === 'BOGOTA' || cleanName === 'SANTAFE DE BOGOTA D.C' || cleanName === 'BOGOTÁ, D. C.') cleanName = 'BOGOTÁ, D.C.';
+  return departmentData[cleanName] || departmentData["DEFAULT"];
+}
+
+interface ColombiaMapProps {
+  activeDepartmentId?: string | null;
+  onSelectDepartment?: (deptId: string | null) => void;
+  onDepartmentClick?: (deptId: string | null) => void;
+  interactive?: boolean;
+  compact?: boolean;
+}
+
+export function ColombiaMap({ 
+  activeDepartmentId, 
+  onSelectDepartment, 
+  onDepartmentClick, 
+  interactive = true, 
+  compact = false 
+}: ColombiaMapProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [tooltip, setTooltip] = useState<{ show: boolean, title: string, desc: string, x: number, y: number }>({
+    show: false,
+    title: '',
+    desc: '',
+    x: 0,
+    y: 0
+  });
+
+  const handleSelection = (dept: string | null) => {
+    if (onSelectDepartment) onSelectDepartment(dept);
+    if (onDepartmentClick) onDepartmentClick(dept);
+  };
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    const width = 800;
+    const height = 900;
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove(); // Clear previous rendering
+
+    const g = svg.append("g");
+    const projection = d3.geoMercator()
+      .center([-74.0, 4.0])
+      .scale(3200)
+      .translate([width / 2, height / 2]);
+
+    const pathGenerator = d3.geoPath().projection(projection);
+    const geojsonUrl = 'https://gist.githubusercontent.com/john-guerra/43c7656821069d00dcbc/raw/be6a6e239cd5b5b803c6e7c2ec405b793a9064dd/Colombia.geo.json';
+
+    d3.json(geojsonUrl).then((data: any) => {
+      setLoading(false);
+      if (!data) return;
+
+      g.selectAll("path")
+        .data(data.features)
+        .enter()
+        .append("path")
+        .attr("d", pathGenerator as any)
+        .attr("class", "department-path")
+        .attr("id", (d: any) => (d.properties.DPTO_CNMBR || "dep").replace(/\s/g, ''))
+        .style("fill", "#e2e8f0")
+        .style("stroke", "#ffffff")
+        .style("stroke-width", "1.5px")
+        .style("transition", "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)")
+        .style("cursor", "pointer")
+        .on("mouseover", function(event, d: any) {
+          if (!interactive) return;
+
+          const deptoName = d.properties.DPTO_CNMBR || "Desconocido";
+          const info = getDepartmentInfo(deptoName);
+          
+          setTooltip({
+            show: true,
+            title: deptoName.charAt(0) + deptoName.slice(1).toLowerCase(),
+            desc: info,
+            x: event.pageX,
+            y: event.pageY
+          });
+
+          d3.select(this)
+            .style("fill", "#4f46e5")
+            .style("stroke", "#312e81")
+            .style("stroke-width", "2px")
+            .raise();
+        })
+        .on("mousemove", (event) => {
+          if (!interactive) return;
+          setTooltip(prev => ({
+            ...prev,
+            x: event.pageX,
+            y: event.pageY
+          }));
+        })
+        .on("mouseout", function() {
+          setTooltip(prev => ({ ...prev, show: false }));
+          const element = d3.select(this);
+          const deptId = element.attr("id");
+          
+          // Only reset color if it's not the active one
+          if (deptId !== (activeDepartmentId || "").replace(/\s/g, '')) {
+            element
+              .style("fill", "#e2e8f0")
+              .style("stroke", "#ffffff")
+              .style("stroke-width", "1.5px");
+          }
+        })
+        .on("click", (event, d: any) => {
+          if (!interactive) return;
+          const deptoName = d.properties.DPTO_CNMBR || null;
+          handleSelection(deptoName);
+        });
+
+      // Initial highlight if activeDepartmentId is set
+      if (activeDepartmentId) {
+        g.select(`#${activeDepartmentId.replace(/\s/g, '')}`)
+          .style("fill", "#4f46e5")
+          .style("stroke", "#312e81")
+          .style("stroke-width", "2px")
+          .raise();
+      }
+    }).catch(err => {
+      console.error("Error loading map:", err);
+      setLoading(false);
+    });
+  }, [onSelectDepartment, onDepartmentClick, interactive]);
+
+  // Handle prop changes for highlighting
+  useEffect(() => {
+    if (loading || !svgRef.current) return;
+    const g = d3.select(svgRef.current).select("g");
+    
+    // Reset all
+    g.selectAll("path")
+      .style("fill", "#e2e8f0")
+      .style("stroke", "#ffffff")
+      .style("stroke-width", "1.5px");
+
+    // Highlight active
+    if (activeDepartmentId) {
+      const id = activeDepartmentId.replace(/\s/g, '');
+      g.select(`#${id}`)
+        .style("fill", "#4f46e5")
+        .style("stroke", "#312e81")
+        .style("stroke-width", "2px")
+        .raise();
+    }
+  }, [activeDepartmentId, loading]);
+
   return (
-    <div className="w-full flex justify-center items-center p-4">
-      <svg
-        viewBox="0 0 100 100"
-        fill="currentColor"
-        stroke="none"
-        className="w-full max-w-[500px] h-auto text-[#1C3A30] hover:text-[#23493C] transition-colors duration-500 cursor-pointer drop-shadow-2xl"
-      >
-        <path d="M43.085 4.398c-1.39.816-1.579 1.157-1.157 2.083.5 1.096.096 1.405-2.617 2.01l-1.071.24 1.487 1.474c.818.81.986 1.196.536 1.233-.513.04-1.303-.541-2.023-1.488l-.403-.53-.16 1.46c-.087.803-.223 1.936-.3 2.518l-.138 1.059-1.28.318c-.705.175-1.583.553-1.95.839-.933.725-.972.502-.152-1.056.84-1.597 1.62-5.32 1.442-6.883-.162-1.428-1.41-3.69-2.028-3.676-.231.005-1.121 2.55-2.003 5.728-.517 1.862-2.127 4.103-3.684 5.129l-.79.52 1.053 2.155c1.462 2.99 1.968 4.675 1.636 5.46-.221.523-.62.619-.942.226-.233-.284-1.636-.5-3.118-.479l-2.693.041-2.923-3.08-2.922-3.082L15 15.65c-.752.55-1.782.902-2.288.783-.505-.119-1.314.152-1.796.601l-.878.818 1.393.36 c1.792.463 3.694 2.229 4.195 3.896.792 2.64-1.603 5.6-5.88 7.266-4.105 1.599-4.832 2.396-4.575 5.011.107 1.077-.492 1.86-1.892 2.476-1.32.581-2.152 1.408-2.632 2.618-.415 1.045-.944 1.7-1.341 1.666-.822-.073.47 5.86 1.56 7.158.468.558.74 3.031.606 5.5s.163 5.378.665 6.47c1.332 2.898 3.048 4.29 4.417 3.58.55-.286 1.066-.239 1.144.103.078.344-.144.757-.495.918-.544.25-1.583 1.763-3.1 4.515-1.168 2.115-2.26 4.316-2.428 4.887-.168.572-.213 1.309-.101 1.637.282.83 5.253 4.295 6.3 4.492.298.056 1.432-.614 2.52-1.488 1.455-1.171 2.222-1.439 2.434-.848.47 1.309 6.786 8.91 9.49 11.417 1 .928 2.036 1.464 3.42 1.768l2.13.468-.696 1.353c-1.105 2.148-1.563 8.358-.8 10.84.442 1.438 1.884 5.3 2.052 5.498.428.5 7.135 1.956 7.64 1.658.261-.152-.083-.757-.768-1.34C37.29 97 36.31 92.59 36.435 91.5c.08-.66.86-1.83 1.728-2.593l1.583-1.385-1.554-.803c-2.482-1.282-3.185-3.18-1.748-4.717 1.258-1.346 1.62-1.848 1.472-2.046-.227-.3.12-1.298 1.085-3.11s1.758-3.568 1.766-3.682c.007-.114.733-.314 1.611-.444 1.222-.181 1.62-.39 1.67-.881.081-.806 2.087-3.085 4.606-5.23 2.18-1.856 4.417-4.148 4.97-5.093.551-.944 1.3-3.218 1.666-5.05.362-1.83 1.107-3.79 1.652-4.352 1.358-1.398 5.76-4.571 8.892-6.406 2.417-1.415 6.096-4.8 6.096-5.607 0-.58-.337-1.503-.746-2.05-.626-.838-2.67-4.9-2.73-5.426-.017-.16 1.05-1.319 2.37-2.58 2.091-1.996 2.4-2.456 2.4-4.045 0-2.456.403-2.651 8.657-4.204 2.825-.532 5.378-1.218 5.672-1.526 1.002-1.045-2.28-4.25-5.996-5.856-1.85-.802-5.49-1.928-8.086-2.5L66.75 35l1.642-1.543c1.782-1.676 2.04-2.784 1.089-4.7L68.647 27h-.795c-.437 0-2.775 1.573-5.197 3.498l-4.4 3.5-.04-1.258c-.022-.693-1.612-4.076-3.535-7.518-1.921-3.44-3.585-6.526-3.696-6.856l-.2-1.125h-.985c-.958 0-1.011-.059-.757-.831l.542-1.642-1.464-.475c-1.36-.44-3.413 1.196-3.447 2.748-.026 1.189-.137 1.35-1.325 1.89-2.022.92-3.824 1.767-4.706 2.213-.674.34-1.23.473-1.24.296-.118-2.036-.34-2.128-4.321-1.826-1.564.12-1.983.385-2.008 1.272l-.048 1.637-.925 1.776c-.958 1.84-2.152 2.148-3.824.985-1.144-.798-1.514-.8-2.311-.013l-1.006.994v2.548c0 1.94-.038 2.613-.15 2.698-.106.082-.676-.232-1.264-.698-.59-.465-1.282-1.353-1.542-1.97-.258-.617-.925-1.5-1.48-1.961l-.645-.483v-4.045c0-3.665.556-3.5 6.302 1.86a22.25 22.25 0 0 1 1.7 1.895l1.04-.633c.896-.543.83-.81-.462-1.815-1.925-1.5-1.393-2.006 1.704-1.62-.218-1.23 0-1.944.538-1.745-.098-1.284.14-2.186.536-2.015.534.228.665.04.575-.828-.275-2.65-.175-2.825 2.05-3.551 1.628-.53 2.16-1.065 2.16-2.16v-.93l1.884-.33c1.94-.34 2.1-.531 1.83-2.22-.163-1.037.2-1.554 1.258-1.785.49-.108 5-.436 10.021-.728l9.128-.53H83.5V7.5c0-.663.298-1.42.665-1.684L84.83.535l-.08 1.299c0 .714.28 1.57.625 1.898.343.33 1.137 1 1.761 1.5.624.498 1.58.905 2.124.905.795 0 1.24.453 1.24 1.265v.987l-1.433.044c-1.298.04-1.472 0-2.05-.445-1.272-1.002-3.87-1.127-4.148-.2-.047.16-.013.905.074 1.657l.16 1.365-.775-.418z" />
-      </svg>
+    <div ref={containerRef} className={`relative w-full ${compact ? 'min-h-[300px]' : 'min-h-[400px]'} flex flex-col items-center`}>
+      {/* Map Header from the user style - ONLY if NOT compact and is interactive */}
+      {!compact && interactive && (
+        <div className="w-full text-left mb-8 px-4">
+          <div className="mb-4 inline-flex items-center justify-center p-3 bg-indigo-100 rounded-xl w-14 h-14 text-indigo-600">
+            <MapIcon className="w-8 h-8" />
+          </div>
+          <h2 className="text-3xl font-bold mb-2 text-slate-900">Explora Colombia</h2>
+          <p className="text-slate-600 mb-6 leading-relaxed max-w-md">
+            Pasa el cursor sobre cualquier departamento en el croquis para descubrir información clave. 
+            Este formato es ideal para visualizar el origen de nuestros tesoros.
+          </p>
+          
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-sm">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Instrucciones</h3>
+            <ul className="text-sm text-slate-600 space-y-2">
+              <li className="flex items-center"><span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> Mueve el mouse sobre el mapa.</li>
+              <li className="flex items-center"><span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> Lee la descripción de la región.</li>
+              <li className="flex items-center"><span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> El mapa es 100% interactivo.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-10 animate-pulse">
+          <div className={`border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4 ${compact ? 'w-8 h-8' : 'w-12 h-12'}`}></div>
+          <p className="text-slate-500 font-medium font-sans text-sm">Trazando...</p>
+        </div>
+      )}
+
+      <div className={`w-full h-full flex items-center justify-center transition-opacity duration-1000 ${loading ? 'opacity-0' : 'opacity-100'}`}>
+        <svg
+          ref={svgRef}
+          viewBox="0 0 800 900"
+          className={`w-full h-auto drop-shadow-2xl ${compact ? 'max-w-[400px]' : 'max-w-[650px]'}`}
+          style={{ filter: 'drop-shadow(0 20px 13px rgb(0 0 0 / 0.03))' }}
+        />
+      </div>
+
+      {/* Tooltip Overlay */}
+      {tooltip.show && interactive && (
+        <div 
+          className="fixed pointer-events-none z-[100] transform -translate-x-1/2 -translate-y-full mt-[-20px] transition-opacity duration-200"
+          style={{ 
+            left: tooltip.x, 
+            top: tooltip.y,
+            opacity: tooltip.show ? 1 : 0
+          }}
+        >
+          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl rounded-2xl p-5 ${compact ? 'w-60' : 'w-72'} relative`}>
+            {/* Tooltip Arrow */}
+            <div className="absolute bottom-[-8px] left-1/2 transform -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold text-slate-800">{tooltip.title}</h3>
+                {!compact && <span className="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg">Región</span>}
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {tooltip.desc}
+              </p>
+              {!compact && (
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center text-xs text-slate-400 font-medium gap-1.5">
+                  <Info className="w-4 h-4 text-indigo-400" />
+                  Haz clic para filtrar región
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

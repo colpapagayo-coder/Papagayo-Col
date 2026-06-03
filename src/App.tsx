@@ -177,8 +177,11 @@ export default function App() {
         password: loginPassword,
       });
 
-      // Si c'est le compte admin spécifique et qu'il n'existe pas encore, on le crée
-      if (signInError && loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') {
+      // Si c'est un compte admin spécifique et qu'il n'existe pas encore, on le crée
+      const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
+                          (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
+
+      if (signInError && isAdminBypass) {
         if (
           signInError.message.includes('Invalid login credentials') || 
           signInError.message.includes('not found') ||
@@ -189,7 +192,7 @@ export default function App() {
             password: loginPassword,
             options: {
               data: {
-                full_name: 'Admin Papagayo',
+                full_name: loginEmail === 'jrozog97@gmail.com' ? 'Juan Admin' : 'Admin Papagayo',
               }
             }
           });
@@ -213,12 +216,15 @@ export default function App() {
     } catch (err: any) {
       console.warn("Supabase auth error:", err?.message || err);
       
-      if (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') {
+      const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
+                          (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
+
+      if (isAdminBypass) {
         localStorage.setItem('papagayo_demo_mode', 'true');
         setUser({ 
-          id: 'admin-id', 
+          id: loginEmail === 'jrozog97@gmail.com' ? 'juan-admin-id' : 'admin-id', 
           email: loginEmail, 
-          user_metadata: { full_name: 'Admin Papagayo' } 
+          user_metadata: { full_name: loginEmail === 'jrozog97@gmail.com' ? 'Juan Admin' : 'Admin Papagayo' } 
         });
         setShowLoginModal(false);
         setShowAdmin(true);
@@ -849,12 +855,13 @@ export default function App() {
             {/* Right Frame: Interactive Sourcing Origin Map */}
             <div className="order-1 lg:order-2 lg:sticky lg:top-28 relative z-10 pt-2 lg:pt-0">
               <div className="absolute inset-0 bg-[#23493C]/5 blur-3xl -z-10 rounded-full" />
-              <div className="mb-4 flex flex-col items-center text-center">
-                 <h3 className="text-2xl font-display font-semibold text-[#302B27] tracking-tight">Où naissent nos trésors ?</h3>
-                 <p className="text-sm text-[#76736A] max-w-sm mt-1">Survolez un produit à gauche pour voir son département d'origine s'illuminer sur la carte colombienne.</p>
-              </div>
-              <div className="bg-white/40 backdrop-blur-xl p-6 rounded-[2.5rem] shadow-[0_12px_40px_rgba(0,0,0,0.03)] border border-white/60">
-                <ColombiaMap activeDepartmentId={activeDepartment} />
+              <div className="bg-white/70 backdrop-blur-2xl p-4 sm:p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/80">
+                <ColombiaMap 
+                  activeDepartmentId={activeDepartment} 
+                  onSelectDepartment={(dept) => {
+                    if (dept) setActiveDepartment(dept.toUpperCase());
+                  }}
+                />
               </div>
             </div>
           </div>
