@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      // For this prototype, we'll allow any signed-in verified user to act as admin. 
+      // In production, this should check a dedicated /admins/$(request.auth.uid) document.
+      return isSignedIn(); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Validation Blueprint for Product
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'description', 'base64Image', 'departmentCode', 'ownerId', 'createdAt'])
+        && data.keys().size() == 6
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 5000
+        && data.base64Image is string && data.base64Image.size() <= 1000000 // approx 1MB max
+        && data.departmentCode is string && data.departmentCode.size() <= 50
+        && data.ownerId == request.auth.uid
+        && data.createdAt is number;
+    }
+
+    match /products/{productId} {
+      // Products are publicly readable
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isAdmin()
+                    && isValidId(productId)
+                    && isValidProduct(incoming());
+                    
+      allow update: if isAdmin()
+                    && existing().ownerId == request.auth.uid
+                    && isValidProduct(incoming())
+                    && incoming().createdAt == existing().createdAt
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'base64Image', 'departmentCode']);
+                    
+      allow delete: if isAdmin() && existing().ownerId == request.auth.uid;
+    }
+  }
+}

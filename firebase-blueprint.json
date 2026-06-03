@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Represents a Colombian product imported by Papagayo.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique product ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product"
+        },
+        "description": {
+          "type": "string"
+        },
+        "base64Image": {
+          "type": "string",
+          "description": "Base64 encoded image string (downscaled to <1MB)"
+        },
+        "departmentCode": {
+          "type": "string",
+          "description": "The administrative department code in Colombia for mapping"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the user who created it"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Server timestamp"
+        }
+      },
+      "required": ["name", "description", "departmentCode", "ownerId", "base64Image"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Collection of all products."
+    }
+  }
+}
