@@ -4,14 +4,17 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from './supabase';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { Product, Category } from './types';
 import { AdminPanel } from './components/AdminPanel';
-import { ColombiaMap } from './components/ColombiaMap';
+import { ColombiaMap, COLOMBIA_DEPARTMENT_DETAILS, getStoryForId } from './components/ColombiaMap';
 import { ProductCard } from './components/ProductCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { RequestForm } from './components/RequestForm';
-import { LogIn, LogOut, Plus, Sparkles, Map, Coffee, Heart, ArrowRight, ShieldCheck, Globe, ChevronDown, Feather, Menu, X, Mail, Lock, FolderHeart, Eye, Store, Layers, Settings } from 'lucide-react';
+import { LogIn, LogOut, Plus, Sparkles, Map, Coffee, Heart, ArrowRight, ShieldCheck, Globe, ChevronDown, Feather, Menu, X, Mail, Lock, FolderHeart, Eye, Store, Layers, Settings, MapPin, Headphones } from 'lucide-react';
+import { COLOMBIA_DEPARTMENTS } from './departments';
 import { motion, AnimatePresence } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { seedDatabase } from './seedData';
@@ -28,6 +31,8 @@ const COUNTRIES = [
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeDepartment, setActiveDepartment] = useState<string | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<string>('all');
+  const [isPlayingBanner, setIsPlayingBanner] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -86,28 +91,22 @@ export default function App() {
         } catch {}
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('createdAt', { ascending: false });
-        
-      if (!error && data) {
-        const dbProds = data as Product[];
-        const combined = [...dbProds];
-        localProds.forEach((lp) => {
-          if (!combined.some(dp => dp.id === lp.id)) {
-            combined.unshift(lp); // Put newly created/local products at the start of the list
-          }
-        });
-        setProducts(combined);
-      } else {
-        if (error) {
-          console.warn("Supabase load products error: ", error);
+      const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const dbProds: Product[] = [];
+      querySnapshot.forEach((doc) => {
+        dbProds.push({ id: doc.id, ...doc.data() } as Product);
+      });
+      
+      const combined = [...dbProds];
+      localProds.forEach((lp) => {
+        if (!combined.some(dp => dp.id === lp.id)) {
+          combined.unshift(lp); // Put newly created/local products at the start of the list
         }
-        setProducts(localProds);
-      }
+      });
+      setProducts(combined);
     } catch (err) {
-      console.warn(err);
+      console.warn("Firestore load products error: ", err);
       const savedLocalProds = localStorage.getItem('papagayo_local_products');
       if (savedLocalProds) {
         try {
@@ -123,18 +122,20 @@ export default function App() {
     const isDemo = localStorage.getItem('papagayo_demo_mode') === 'true';
     if (isDemo) {
       setUser({ id: 'demo-admin-id', email: 'hola@papagayo-direct.com', user_metadata: { full_name: 'Admin Papagayo' } });
-    } else {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          setUser(session.user);
-        }
-      });
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       const demoNow = localStorage.getItem('papagayo_demo_mode') === 'true';
-      if (!demoNow && session?.user) {
-        setUser(session.user);
+      if (!demoNow) {
+        if (firebaseUser) {
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            user_metadata: { full_name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] }
+          });
+        } else {
+          setUser(null);
+        }
       }
     });
 
@@ -142,7 +143,7 @@ export default function App() {
     loadCategories();
 
     return () => {
-      subscription.unsubscribe();
+      unsubscribeAuth();
     };
   }, []);
 
@@ -172,49 +173,34 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
-      });
-
-      // Si c'est un compte admin spécifique et qu'il n'existe pas encore, on le crée
-      const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
-                          (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
-
-      if (signInError && isAdminBypass) {
-        if (
-          signInError.message.includes('Invalid login credentials') || 
-          signInError.message.includes('not found') ||
-          signInError.message.includes('Email not confirmed')
-        ) {
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: loginEmail,
-            password: loginPassword,
-            options: {
-              data: {
-                full_name: loginEmail === 'jrozog97@gmail.com' ? 'Juan Admin' : 'Admin Papagayo',
-              }
-            }
-          });
-          if (!signUpError && signUpData?.user) {
-            signInData = signUpData;
-            signInError = null as any;
-          }
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      } catch (signInErr: any) {
+        // Speculative bypass for admin accounts mentioned in code
+        const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
+                            (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
+        
+        if (isAdminBypass && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential')) {
+          userCredential = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
+        } else {
+          throw signInErr;
         }
       }
 
-      if (signInError) {
-        throw signInError;
-      }
-
-      if (signInData?.user) {
-        setUser(signInData.user);
+      if (userCredential?.user) {
+        const fbUser = userCredential.user;
+        setUser({
+          id: fbUser.uid,
+          email: fbUser.email,
+          user_metadata: { full_name: fbUser.displayName || fbUser.email?.split('@')[0] }
+        });
         setShowLoginModal(false);
         setShowAdmin(true);
         alert("¡Sesión iniciada!");
       }
     } catch (err: any) {
-      console.warn("Supabase auth error:", err?.message || err);
+      console.warn("Firebase auth error:", err?.message || err);
       
       const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
                           (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
@@ -239,7 +225,7 @@ export default function App() {
 
   const handleLogout = async () => {
     localStorage.removeItem('papagayo_demo_mode');
-    await supabase.auth.signOut();
+    await signOut(auth);
     setUser(null);
     setShowAdmin(false);
   };
@@ -256,13 +242,20 @@ export default function App() {
   };
 
   const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 400); // 400ms to ensure the mobile menu animation is completely finished
   };
 
   const filteredProducts = products.filter(product => {
+    // Check location first
+    if (selectedLocation !== 'all' && product.departmentCode !== selectedLocation) {
+      return false;
+    }
+    
     if (selectedCategory === 'all') return true;
     
     const cat = (product.category || '').toLowerCase();
@@ -298,17 +291,17 @@ export default function App() {
   return (
     <>
       <Helmet>
-        <html lang="fr" />
-        <title>Papagayo | Importateur et Sourcing Direct de Trésors Colombiens</title>
-        <meta name="description" content="Papagayo importe les meilleurs cafés de spécialité, art et produits de Colombie pour toute l'Europe (France, Espagne, Allemagne, etc). Découvrez l'essence de la Colombie." />
-        <meta name="keywords" content="café colombien, importation colombie, produits de colombie, café de spécialité, artisanat colombien, Papagayo, achat de café, europe colombien, mochila wayuu, cacao de colombie" />
-        <meta property="og:title" content="Papagayo | Sourcing Colombien Rigoureux & Import Direct" />
-        <meta property="og:description" content="Découvrez une sélection exclusive de café de spécialité et produits artisanaux importés directement de Colombie, disponibles à la livraison partout en Europe." />
-        <meta property="og:locale" content="fr_FR" />
-        <meta property="og:locale:alternate" content="en_GB" />
+        <html lang="es" />
+        <title>Papagayo | Importador y Catálogo de Tesoros Colombianos</title>
+        <meta name="description" content="Papagayo importa los mejores cafés de especialidad, esmeraldas, artesanías y productos de Colombia. Descubre la esencia y el origen de Colombia." />
+        <meta name="keywords" content="productos colombianos, comprar en colombia, importación de columbia, café de especialidad, artesanías colombianas, Papagayo, café colombiano, comprar esmeraldas, tesoros de colombia" />
+        <meta property="og:title" content="Papagayo | Tesoros y Productos de Colombia" />
+        <meta property="og:description" content="Descubre un catálogo exclusivo de café y productos artesanales importados directamente de Colombia." />
+        <meta property="og:locale" content="es_CO" />
         <meta property="og:locale:alternate" content="es_ES" />
-        <meta property="og:locale:alternate" content="de_DE" />
-        <link rel="canonical" href="https://papagayo.com" />
+        <meta property="og:locale:alternate" content="fr_FR" />
+        <meta property="og:locale:alternate" content="en_US" />
+        <link rel="canonical" href="https://papagayocolombia.com" />
       </Helmet>
       
       <div className="min-h-screen font-sans selection:bg-[#23493C]/20 bg-gradient-to-b from-[#F9F7F2] via-[#EFEBE0] to-[#E3DCB9] relative overflow-x-hidden">
@@ -356,7 +349,7 @@ export default function App() {
                     <img 
                       src={brandLogo} 
                       alt="Logo Papagayo" 
-                      className="w-full h-full rounded-lg object-cover" 
+                      className="w-full h-full object-contain" 
                     />
                   </div>
                   <div>
@@ -481,7 +474,7 @@ export default function App() {
                 <img 
                   src={brandLogo} 
                   alt="Logo Papagayo" 
-                  className="w-10 h-10 rounded-full object-cover border border-[#23493C]/10 bg-white/80 p-0.5 group-hover:scale-105 transition-all shadow-xs" 
+                  className="w-14 h-14 object-contain border border-[#23493C]/10 bg-white/90 p-0.5 group-hover:scale-105 transition-all shadow-sm rounded-full" 
                 />
                 <span className="font-display font-semibold text-2xl tracking-tight text-[#23493C]">
                   Papagayo<span className="text-[#8B5E34]">.</span>
@@ -489,9 +482,10 @@ export default function App() {
               </div>
               
               <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-[#76736A]">
-                <button onClick={() => scrollToSection('catalogue')} className="hover:text-[#23493C] transition-colors">Le Catalogue</button>
-                <button onClick={() => scrollToSection('about')} className="hover:text-[#23493C] transition-colors">Notre Démarche</button>
-                <button onClick={() => scrollToSection('contact')} className="hover:text-[#23493C] transition-colors">Suggérer un Produit</button>
+                <button onClick={() => scrollToSection('hero')} className="hover:text-[#23493C] transition-colors">Nosotros</button>
+                <button onClick={() => scrollToSection('catalogue')} className="hover:text-[#23493C] transition-colors">Catálogo</button>
+                <button onClick={() => scrollToSection('about')} className="hover:text-[#23493C] transition-colors">Nuestra Filosofía</button>
+                <button onClick={() => scrollToSection('contact')} className="hover:text-[#23493C] transition-colors">Formulario</button>
               </div>
             </div>
 
@@ -585,26 +579,33 @@ export default function App() {
 
                   {/* Navigation links inside mobile viewport */}
                   <div className="flex flex-col space-y-4">
-                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">Navigation Directe</span>
+                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">Navegación Directa</span>
+                    <button 
+                      onClick={() => { scrollToSection('hero'); setMobileMenuOpen(false); }} 
+                      className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
+                    >
+                      <span>Nosotros</span>
+                      <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
+                    </button>
                     <button 
                       onClick={() => { scrollToSection('catalogue'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Le Catalogue</span>
+                      <span>Catálogo</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                     <button 
                       onClick={() => { scrollToSection('about'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Notre Démarche</span>
+                      <span>Nuestra Filosofía</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                     <button 
                       onClick={() => { scrollToSection('contact'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Suggérer un Produit</span>
+                      <span>Formulario</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                   </div>
@@ -652,7 +653,7 @@ export default function App() {
         </nav>
 
         {/* Majestic Full-Bleed Hero Section */}
-        <section className="relative pt-32 pb-24 md:pt-40 md:pb-36 px-6 max-w-7xl mx-auto">
+        <section id="hero" className="relative pt-32 pb-24 md:pt-40 md:pb-36 px-6 max-w-7xl mx-auto">
           <div className="relative rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden bg-[#2D2A24] text-white min-h-[550px] md:min-h-[640px] flex items-center shadow-2xl">
             {/* Background Image with elegant overlay gradient */}
             <div 
@@ -667,16 +668,16 @@ export default function App() {
               {/* Subtle upper tag */}
               <div className="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-[#DFDAC8] text-xs font-semibold tracking-wider uppercase mb-6">
                 <Sparkles className="w-3 h-3 text-[#E3DCB9]" />
-                <span>Sourcing direct de Colombie</span>
+                <span>Amérique latine & Café d'origine colombienne</span>
               </div>
 
               <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-[4.2rem] font-bold tracking-tight text-white leading-[1.08] mb-6">
-                Café d'exception & Art colombien.<br />
-                <span className="text-[#E3DCB9] font-medium italic">Importation éthique.</span>
+                Des créations nées des mains,<br />
+                <span className="text-[#E3DCB9] font-medium italic">de la terre et de la tradition.</span>
               </h1>
               
               <p className="max-w-xl text-gray-200 text-base md:text-lg leading-relaxed mb-8">
-                Bypassez les intermédiaires de distribution. Papagayo source rigoureusement des grains de haute altitude et des pièces d’art directement auprès de communautés locales colombiennes, pour les distribuer partout en Europe.
+                Découvrez des pièces uniques faites main par des artisans d'Amérique latine, associées à d'authentiques cafés d'altitude cultivés exclusivement en Colombie par des familles de producteurs passionnés.
               </p>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
@@ -684,14 +685,14 @@ export default function App() {
                   onClick={() => scrollToSection('catalogue')}
                   className="px-8 py-4 bg-[#23493C] text-white rounded-2xl font-semibold tracking-wide text-sm hover:bg-[#1C3A30] transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-2 shadow-lg cursor-pointer"
                 >
-                  <span>Explorer le catalogue</span>
+                  <span>Explorer le Catalogue</span>
                   <ArrowRight className="w-4 h-4 text-[#DFDAC8]" />
                 </button>
                 <button 
                   onClick={() => scrollToSection('about')}
                   className="px-8 py-4 bg-white/10 hover:bg-white/15 text-white rounded-2xl font-semibold tracking-wide text-sm transition-all border border-white/10 hover:border-white/30 backdrop-blur-sm flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <span>Notre philosophie</span>
+                  <span>Notre Philosophie</span>
                 </button>
               </div>
 
@@ -735,51 +736,119 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Apple style Category filtering tabs above Catalogue Section */}
-          <div className="mb-10 max-w-3xl">
-            <span className="text-[10px] uppercase font-extrabold tracking-widest text-[#8B5E34] block mb-2 font-display">Filtrer par Catégorie de Trésors</span>
-            <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategory('all');
-                  scrollToSection('catalogue');
-                }}
-                className={`px-4.5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border ${
-                  selectedCategory === 'all'
-                    ? 'bg-[#23493C] border-[#23493C] text-white shadow-md shadow-[#23493C]/25 scale-102'
-                    : 'bg-white/70 border-gray-200 text-[#76736A] hover:bg-white hover:text-[#302B27]'
-                }`}
-              >
-                Tous les Trésors
-              </button>
-              {categories.map((cat) => {
-                const isActive = selectedCategory === cat.id;
-                return (
+          {/* Redesigned Premium Filter Station */}
+          <div className="mb-10 p-5 md:p-6 lg:p-7 bg-white/75 backdrop-blur-xl rounded-3xl border border-[#23493C]/10 shadow-md shadow-[#23493C]/5 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+              
+              {/* Location Selector (Territoire d'Origine) */}
+              <div className="space-y-2.5">
+                <label className="text-[10px] uppercase font-extrabold tracking-widest text-[#8B5E34] flex items-center gap-1.5 font-sans">
+                  <MapPin className="w-3.5 h-3.5 text-[#8B5E34]" />
+                  <span>Territoire d'Origine (Colombie)</span>
+                </label>
+                <div className="relative group">
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => {
+                      setSelectedLocation(e.target.value);
+                      scrollToSection('products-list');
+                    }}
+                    className="w-full appearance-none bg-[#FDFCF7]/90 border border-[#23493C]/15 hover:border-[#23493C]/45 text-[#302B27] rounded-2xl pl-11 pr-10 py-3.5 text-sm font-semibold shadow-xs transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#23493C]/20 focus:border-[#23493C] cursor-pointer"
+                  >
+                    <option value="all">Tous les Territoires</option>
+                    {COLOMBIA_DEPARTMENTS.sort((a,b) => a.name.localeCompare(b.name)).map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[#23493C]/75 transition-colors group-hover:text-[#23493C]">
+                    <Map className="w-4 h-4" />
+                  </div>
+                  <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8B5E34]">
+                    <ChevronDown className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Filter */}
+              <div className="space-y-2.5">
+                <label className="text-[10px] uppercase font-extrabold tracking-widest text-[#8B5E34] flex items-center gap-1.5 font-sans">
+                  <Layers className="w-3.5 h-3.5 text-[#8B5E34]" />
+                  <span>Catégorie de Produits</span>
+                </label>
+                
+                {/* Mobile Dropdown (shown up to md) */}
+                <div className="block md:hidden relative group">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => {
+                      setSelectedCategory(e.target.value);
+                      scrollToSection('products-list');
+                    }}
+                    className="w-full appearance-none bg-[#FDFCF7]/90 border border-[#23493C]/15 hover:border-[#23493C]/45 text-[#302B27] rounded-2xl pl-11 pr-10 py-3.5 text-sm font-semibold shadow-xs transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#23493C]/20 focus:border-[#23493C] cursor-pointer"
+                  >
+                    <option value="all">Tous les Produits</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[#23493C]/75">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#8B5E34]">
+                    <ChevronDown className="w-4.5 h-4.5" />
+                  </div>
+                </div>
+
+                {/* Desktop Tabs (shown on md and above) */}
+                <div className="hidden md:flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                   <button
-                    key={cat.id}
                     type="button"
                     onClick={() => {
-                      setSelectedCategory(cat.id);
-                      scrollToSection('catalogue');
+                      setSelectedCategory('all');
+                      scrollToSection('products-list');
                     }}
-                    className={`px-4.5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border ${
-                      isActive 
-                        ? 'bg-[#23493C] border-[#23493C] text-white shadow-md shadow-[#23493C]/25 scale-102' 
-                        : 'bg-white/70 border-gray-200 text-[#76736A] hover:bg-white hover:text-[#302B27]'
+                    className={`px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer whitespace-nowrap border ${
+                      selectedCategory === 'all'
+                        ? 'bg-[#23493C] border-[#23493C] text-white shadow-md shadow-[#23493C]/15 scale-[1.02]'
+                        : 'bg-white hover:bg-[#FDFCF7] border-gray-200 text-[#76736A] hover:text-[#302B27] hover:border-gray-300'
                     }`}
                   >
-                    {cat.name}
+                    Tous les Produits
                   </button>
-                );
-              })}
+                  {categories.map((cat) => {
+                    const isActive = selectedCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(cat.id);
+                          scrollToSection('products-list');
+                        }}
+                        className={`px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer whitespace-nowrap border ${
+                          isActive 
+                            ? 'bg-[#23493C] border-[#23493C] text-white shadow-md shadow-[#23493C]/15 scale-[1.02]' 
+                            : 'bg-white hover:bg-[#FDFCF7] border-gray-200 text-[#76736A] hover:text-[#302B27] hover:border-gray-300'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
             
             {/* Left Frame: Coffee & Artisanal Catalogue */}
-            <div className="space-y-8 order-2 lg:order-1">
+            <div id="products-list" className="space-y-8 order-2 lg:order-1 scroll-mt-24">
               
               {/* Mobile country selector placeholder wrapper */}
               <div className="md:hidden flex items-center justify-between bg-white/50 border border-white/80 rounded-3xl p-4 shadow-sm mb-6">
@@ -800,13 +869,112 @@ export default function App() {
 
               <div className="flex items-center justify-between pb-6 border-b border-[#23493C]/10">
                 <div>
-                  <h2 className="font-display text-3xl font-semibold text-[#302B27] tracking-tight">Notre Sélection Unique</h2>
+                  <h2 className="font-display text-3xl font-semibold text-[#302B27] tracking-tight">Notre Sélection Unique / Selección Unica</h2>
                   <p className="text-sm text-[#76736A] mt-1">Variations de prix dynamiques selon le pays d'expédition sélectionné.</p>
                 </div>
                 <span className="px-3.5 py-1 bg-[#23493C]/5 text-[#23493C] text-xs font-bold uppercase rounded-full tracking-wider">
                   {filteredProducts.length} Merveilles
                 </span>
               </div>
+
+              {/* Terroir / Location Description and Audio Text Banner */}
+              {selectedLocation !== 'all' && (
+                <div className="relative overflow-hidden bg-gradient-to-br from-[#FDFCF7] to-[#F5F2E9] border border-[#23493C]/15 rounded-3xl p-5 sm:p-6 shadow-sm animate-fade-in">
+                  <div className="absolute top-0 right-0 w-28 h-28 bg-[#23493C]/3 rounded-bl-full pointer-events-none" />
+                  
+                  {/* Banner Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-[#8B5E34]">
+                        Terroir Sélectionné / Origen Territoríal
+                      </div>
+                      <h3 className="font-display text-2xl font-bold text-[#302B27] mt-0.5">
+                        {getStoryForId(selectedLocation).name_es || getStoryForId(selectedLocation).name}
+                      </h3>
+                      <p className="text-xs font-bold text-[#23493C] mt-0.5 uppercase tracking-wide">
+                        {getStoryForId(selectedLocation).specialty_es || getStoryForId(selectedLocation).specialty}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedLocation('all')}
+                      className="px-3.5 py-1.5 self-start sm:self-auto bg-white hover:bg-red-50 border border-[#23493C]/15 hover:border-red-200 text-[10px] font-bold text-[#76736A] hover:text-red-600 rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 uppercase tracking-wider"
+                    >
+                      <span>Voir tout / Mostrar todo</span>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Place Story */}
+                  <div className="bg-white/70 backdrop-blur-md p-4 rounded-2xl border border-[#23493C]/5 shadow-2xs my-3 text-xs sm:text-sm text-[#76736A] leading-relaxed italic">
+                    "{getStoryForId(selectedLocation).story_es || getStoryForId(selectedLocation).story}"
+                  </div>
+
+                  {/* Artisans and Techniques detail grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 bg-white/40 border border-[#23493C]/5 rounded-2xl">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">Créateurs associés / Productores</span>
+                      <span className="text-xs font-bold text-[#302B27]">
+                        {getStoryForId(selectedLocation).artisanName_es || getStoryForId(selectedLocation).artisanName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">Savoir-faire / Sabiduría</span>
+                      <span className="text-xs font-bold text-[#302B27]">
+                        {getStoryForId(selectedLocation).technique_es || getStoryForId(selectedLocation).technique}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Narration control block */}
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3.5 border-t border-[#23493C]/5">
+                    <button
+                      onClick={() => {
+                        if (isPlayingBanner) {
+                          if (typeof window !== 'undefined' && window.speechSynthesis) {
+                            window.speechSynthesis.cancel();
+                          }
+                          setIsPlayingBanner(false);
+                        } else {
+                          if (typeof window !== 'undefined' && window.speechSynthesis) {
+                            window.speechSynthesis.cancel();
+                            
+                            // Speak bilingual depending on context (prefer Spanish/French)
+                            const detail = getStoryForId(selectedLocation);
+                            const audioText = detail.audioText_es || detail.audioText;
+                            const utterance = new SpeechSynthesisUtterance(audioText);
+                            utterance.lang = detail.audioText_es ? 'es-ES' : 'fr-FR';
+                            
+                            const voices = window.speechSynthesis.getVoices();
+                            const desiredVoice = voices.find(v => v.lang.startsWith(detail.audioText_es ? 'es' : 'fr'));
+                            if (desiredVoice) utterance.voice = desiredVoice;
+                            
+                            utterance.onend = () => setIsPlayingBanner(false);
+                            utterance.onerror = () => setIsPlayingBanner(false);
+                            
+                            window.speechSynthesis.speak(utterance);
+                            setIsPlayingBanner(true);
+                          }
+                        }
+                      }}
+                      className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                        isPlayingBanner
+                          ? 'bg-red-500 text-white hover:bg-red-600 scale-102'
+                          : 'bg-[#23493C] text-white hover:bg-[#1C3A30] scale-102 hover:scale-105'
+                      }`}
+                    >
+                      <Headphones className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {isPlayingBanner ? "Arrêter la narration / Parar audio" : "Escuchar historia / Écouter l'histoire"}
+                      </span>
+                    </button>
+                    
+                    <span className="text-[9px] text-[#8B5E34] uppercase font-bold tracking-widest bg-[#8B5E34]/5 px-2.5 py-1 rounded-lg">
+                      Origine Certifiée ✓
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {loading ? (
                 <div className="py-24 flex justify-center">
@@ -841,15 +1009,17 @@ export default function App() {
                         deliveryCountry={deliveryCountry}
                         onMouseEnter={() => setActiveDepartment(product.departmentCode)}
                         onMouseLeave={() => setActiveDepartment(null)}
+                        onLocationClick={(deptCode) => {
+                          setSelectedLocation(deptCode);
+                          // Smooth scroll directly to the listing
+                          const el = document.getElementById('products-list');
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
                       />
                     </div>
                   ))}
                 </div>
               )}
-              
-              <div id="contact" className="pt-8 scroll-mt-24">
-                <RequestForm key={prefilledProductQuery} initialProduct={prefilledProductQuery} />
-              </div>
             </div>
 
             {/* Right Frame: Interactive Sourcing Origin Map */}
@@ -857,9 +1027,13 @@ export default function App() {
               <div className="absolute inset-0 bg-[#23493C]/5 blur-3xl -z-10 rounded-full" />
               <div className="bg-white/70 backdrop-blur-2xl p-4 sm:p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/80">
                 <ColombiaMap 
-                  activeDepartmentId={activeDepartment} 
+                  activeDepartmentId={selectedLocation !== 'all' ? selectedLocation : activeDepartment} 
                   onSelectDepartment={(dept) => {
-                    if (dept) setActiveDepartment(dept.toUpperCase());
+                    if (dept) {
+                      setSelectedLocation(dept);
+                    } else {
+                      setSelectedLocation('all');
+                    }
                   }}
                 />
               </div>
@@ -875,11 +1049,11 @@ export default function App() {
               {/* Left Column Description */}
               <div className="lg:col-span-5 space-y-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white p-1.5 shadow-md border border-white/50 flex items-center justify-center shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-white p-1 shadow-md border border-white/50 flex items-center justify-center shrink-0">
                     <img 
                       src={brandLogo} 
                       alt="Logo Papagayo" 
-                      className="w-full h-full rounded-xl object-cover" 
+                      className="w-full h-full object-contain" 
                     />
                   </div>
                   <div>
@@ -890,17 +1064,23 @@ export default function App() {
 
                 <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#23493C]/5 text-[#23493C] rounded-full text-xs font-semibold uppercase tracking-wider">
                   <Feather className="w-3 h-3 text-[#23493C]" />
-                  <span>D'une Famille d'agriculteurs à votre table</span>
+                  <span>Artisanat & Café d'Origine Exceptionnels</span>
                 </div>
                 <h2 className="font-display text-4xl lg:text-5xl font-bold tracking-tight text-[#302B27] leading-tight">
-                  Sourcing direct,<br />
-                  <span className="text-[#8B5E34]">zéro filtre.</span>
+                  Papagayo Sourcing<br />
+                  <span className="text-[#8B5E34]">Artisans de la Terre.</span>
                 </h2>
+                <blockquote className="border-l-4 border-[#23493C] pl-4 italic text-lg text-[#302B27] font-medium leading-relaxed my-4">
+                  “De l’Amérique latine vers l’Europe, nous partageons des créations nées des mains, de la terre et de la tradition.”
+                </blockquote>
                 <p className="text-base text-[#76736A] leading-relaxed">
-                  Papagayo est né de la volonté de rompre avec les réseaux d'importation opaques traditionnels. Nous travaillons main dans la main avec des micro-coopératives locales colombiennes en garantissant des prix d’achats stables et justes.
+                  Nous travaillons directement aux côtés d’artisans, de communautés autochtones et de producteurs de café colombien afin de proposer des pièces uniques et des cafés d’origine qui portent la voix de celles et ceux qui les créent. Chaque objet raconte une histoire. Chaque tasse exprime un territoire. Chaque collaboration construit un pont entre les cultures.
                 </p>
                 <p className="text-base text-[#76736A] leading-relaxed">
-                  Notre hub d’expédition basé en France collabore avec des transporteurs express responsables pour livrer à votre domicile en Allemagne, Italie, Espagne ou France, en adaptant le prix de transport au plus juste.
+                  Notre café est cultivé dans les montagnes de Colombie par des familles de producteurs qui transmettent leur savoir-faire et leur passion de génération en génération. Nos créations artisanales reflètent l’identité, la mémoire et la richesse culturelle des peuples qui les façonnent à la main, en préservant des techniques et des connaissances ancestrales.
+                </p>
+                <p className="text-base text-[#76736A] leading-relaxed">
+                  Parce que nous croyons que les personnes doivent être aussi présentes que les produits qu’elles offrent au monde. Plus que des produits, nous partageons des histoires, des traditions et le lien humain qui leur donne naissance.
                 </p>
                 
                 <div className="flex items-center space-x-6 pt-2">
@@ -965,6 +1145,11 @@ export default function App() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Contact Form Section */}
+        <section id="contact" className="py-20 px-6 max-w-7xl mx-auto scroll-mt-24">
+          <RequestForm key={prefilledProductQuery} initialProduct={prefilledProductQuery} />
         </section>
 
         {/* Beautiful Footer */}

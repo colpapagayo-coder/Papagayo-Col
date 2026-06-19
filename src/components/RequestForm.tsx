@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from 'react';
-import { supabase } from '../supabase';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2, Send } from 'lucide-react';
 
 interface RequestFormProps {
@@ -17,7 +18,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ initialProduct = '' })
     e.preventDefault();
     setLoading(true);
 
-    // Create unique local request object with high-contrast formatting
+    // Create unique local request object for instant UX
     const newRequest = {
       id: 'req-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now(),
       name,
@@ -26,7 +27,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ initialProduct = '' })
       createdAt: new Date().toISOString()
     };
 
-    // Store in localStorage first so it is instantly available in the local Admin View
     try {
       let localRequests: any[] = [];
       const saved = localStorage.getItem('papagayo_local_suggestions');
@@ -42,22 +42,19 @@ export const RequestForm: React.FC<RequestFormProps> = ({ initialProduct = '' })
     }
 
     try {
-      const { error } = await supabase.from('product_requests').insert({
+      await addDoc(collection(db, 'product_requests'), {
         name,
         email,
         requestedProduct,
+        createdAt: serverTimestamp()
       });
 
-      if (error) {
-        console.warn("Supabase table insert error, but suggestion is cached locally.", error);
-      }
       setSuccess(true);
       setName('');
       setEmail('');
       setRequestedProduct('');
     } catch (error) {
-      console.warn("Supabase insertion failed, saved locally instead:", error);
-      // Still show success to the user as it's fully logged locally in browser state!
+      console.warn("Firestore insertion failed, saved locally instead:", error);
       setSuccess(true);
       setName('');
       setEmail('');

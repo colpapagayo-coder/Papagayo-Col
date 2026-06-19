@@ -1,5 +1,6 @@
 import { useState, useRef, ChangeEvent, FormEvent, useEffect } from 'react';
-import { supabase } from '../supabase';
+import { db } from '../firebase';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { COLOMBIA_DEPARTMENTS } from '../departments';
 import { ColombiaMap } from './ColombiaMap';
 import { Product, Category, CountryPricingConfig } from '../types';
@@ -139,23 +140,20 @@ export function AdminPanel({
         } catch {}
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('createdAt', { ascending: false });
+      const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const dbProds: Product[] = [];
+      querySnapshot.forEach((doc) => {
+        dbProds.push({ id: doc.id, ...doc.data() } as Product);
+      });
         
-      if (!error && data) {
-        const dbProds = data as Product[];
-        const combined = [...dbProds];
-        localProds.forEach((lp) => {
-          if (!combined.some(dp => dp.id === lp.id)) {
-            combined.unshift(lp);
-          }
-        });
-        setAdminProducts(combined);
-      } else {
-        setAdminProducts(localProds);
-      }
+      const combined = [...dbProds];
+      localProds.forEach((lp) => {
+        if (!combined.some(dp => dp.id === lp.id)) {
+          combined.unshift(lp);
+        }
+      });
+      setAdminProducts(combined);
     } catch (e) {
       console.error(e);
       // Fallback on error
@@ -183,29 +181,26 @@ export function AdminPanel({
         } catch {}
       }
 
-      const { data, error } = await supabase
-        .from('product_requests')
-        .select('*')
-        .order('id', { ascending: false });
+      const q = query(collection(db, 'product_requests'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const dbSugs: any[] = [];
+      querySnapshot.forEach((doc) => {
+        dbSugs.push({ id: doc.id, ...doc.data() });
+      });
 
-      if (!error && data) {
-        const dbSugs = data as any[];
-        const combined = [...dbSugs];
-        localSugs.forEach((ls) => {
-          const alreadyInDb = dbSugs.some(ds => 
-            (ds.email === ls.email && ds.requestedProduct === ls.requestedProduct) ||
-            ds.id === ls.id
-          );
-          if (!alreadyInDb) {
-            combined.unshift(ls);
-          }
-        });
-        setSuggestions(combined);
-      } else {
-        setSuggestions(localSugs);
-      }
+      const combined = [...dbSugs];
+      localSugs.forEach((ls) => {
+        const alreadyInDb = dbSugs.some(ds => 
+          (ds.email === ls.email && ds.requestedProduct === ls.requestedProduct) ||
+          ds.id === ls.id
+        );
+        if (!alreadyInDb) {
+          combined.unshift(ls);
+        }
+      });
+      setSuggestions(combined);
     } catch (e) {
-      console.error("Supabase load suggestions error:", e);
+      console.error("Firestore load suggestions error:", e);
       let localSugs: any[] = [];
       const savedLocalSugs = localStorage.getItem('papagayo_local_suggestions');
       if (savedLocalSugs) {
@@ -353,12 +348,19 @@ export function AdminPanel({
 
       // 2. Database update or insert
       try {
+        const productData = { ...productPayload };
+        delete (productData as any).id; // ID is the document ID in Firestore
+
         if (editingProduct) {
-          const { error } = await supabase.from('products').update(productPayload).eq('id', targetId);
-          if (error) console.warn("Supabase update error fallback to cache:", error);
+          await updateDoc(doc(db, 'products', targetId), {
+            ...productData,
+            updatedAt: serverTimestamp()
+          });
         } else {
-          const { error } = await supabase.from('products').insert(productPayload);
-          if (error) console.warn("Supabase insert error fallback to cache:", error);
+          await addDoc(collection(db, 'products'), {
+            ...productData,
+            createdAt: serverTimestamp()
+          });
         }
       } catch (dbErr) {
         console.warn("Db action failed, using offline fallback storage:", dbErr);
@@ -512,10 +514,14 @@ export function AdminPanel({
         });
         localStorage.setItem('papagayo_local_products', JSON.stringify(revisedProducts));
         
-        // Push updates to Supabase (if we have access tokens)
+        // Push updates to Firestore
         for (const item of revisedProducts) {
           try {
-            await supabase.from('products').update({ prices: item.prices, basePrice: item.basePrice }).eq('id', item.id);
+            await updateDoc(doc(db, 'products', item.id), {
+              prices: item.prices,
+              basePrice: item.basePrice,
+              updatedAt: serverTimestamp()
+            });
           } catch {}
         }
       }
@@ -536,10 +542,9 @@ export function AdminPanel({
     if (!confirm("Voulez-vous vraiment supprimer ce produit de l'inventaire ?")) return;
     
     try {
-      const { error } = await supabase.from('products').delete().eq('id', prodId);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'products', prodId));
     } catch (e) {
-      console.warn("Supabase delete failed, operating locally:", e);
+      console.warn("Firestore delete failed, operating locally:", e);
     } finally {
       let localProducts: Product[] = [];
       const savedLocalProducts = localStorage.getItem('papagayo_local_products');
@@ -560,11 +565,11 @@ export function AdminPanel({
   // Archive request
   const handleMarkRequestDone = async (reqId: string) => {
     try {
-      // 1. Try to delete from Supabase
+      // 1. Try to delete from Firestore
       try {
-        await supabase.from('product_requests').delete().eq('id', reqId);
+        await deleteDoc(doc(db, 'product_requests', reqId));
       } catch (dbErr) {
-        console.warn("Supabase database delete issue:", dbErr);
+        console.warn("Firestore database delete issue:", dbErr);
       }
 
       // 2. Filter and update localStorage
@@ -967,8 +972,9 @@ export function AdminPanel({
               <div className="border border-gray-250/30 rounded-xl overflow-hidden bg-white/40 w-full">
                 <ColombiaMap 
                   activeDepartmentId={departmentId} 
-                  onDepartmentClick={(id) => setDepartmentId(id)}
+                  onDepartmentClick={(id) => id && setDepartmentId(id)}
                   interactive={true}
+                  allowDeselect={false}
                 />
               </div>
               <div className="flex items-center space-x-2 text-xs text-[#76736A] mt-3 bg-[#23493C]/5 p-2 sm:p-2.5 rounded-xl border border-[#23493C]/10 leading-snug">

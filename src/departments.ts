@@ -33,3 +33,15 @@ export const COLOMBIA_DEPARTMENTS = [
   { id: "CO-VAU", name: "Vaupés" },
   { id: "CO-VID", name: "Vichada" }
 ];
+
+export function getDepartmentCodeFromName(mapName: string): string | null {
+  if (!mapName) return null;
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  const nMapName = norm(mapName);
+  
+  if (nMapName.includes("BOGOTA") || nMapName.includes("SANTAFE")) return "CO-DC";
+  
+  const found = COLOMBIA_DEPARTMENTS.find(d => norm(d.name) === nMapName);
+  return found ? found.id : null;
+}
+
