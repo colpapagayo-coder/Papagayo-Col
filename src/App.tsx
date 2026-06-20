@@ -18,8 +18,9 @@ import { COLOMBIA_DEPARTMENTS } from './departments';
 import { motion, AnimatePresence } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { seedDatabase } from './seedData';
+import { useLanguage, Language } from './contexts/LanguageContext';
 import heroBg from './assets/images/hero_colombian_bg_1780435795591.png';
-import brandLogo from './assets/images/papagayo_colombia_logo_png_1780438656342.png';
+import brandLogo from './assets/images/logo.jpeg';
 
 const COUNTRIES = [
   { code: 'FR', name: 'France' },
@@ -29,6 +30,7 @@ const COUNTRIES = [
 ];
 
 export default function App() {
+  const { language, setLanguage, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [activeDepartment, setActiveDepartment] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
@@ -357,7 +359,7 @@ export default function App() {
                       <span>Papagayo Direct</span>
                       <span className="text-[9px] font-sans font-black tracking-widest bg-amber-500 text-black px-2 py-0.5 rounded-full">SYSTEM</span>
                     </h1>
-                    <p className="text-[10px] text-gray-300 mt-0.5 text-left">Control de Inventario de Origen & Tarifarios Comunitarios</p>
+                    <p className="text-[10px] text-gray-300 mt-0.5 text-left">{t('adminDescription')}</p>
                   </div>
                 </div>
 
@@ -366,7 +368,7 @@ export default function App() {
                   <div className="flex items-center bg-black/15 border border-white/5 rounded-2xl px-3.5 py-1.5 gap-2.5">
                     <div className="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse" />
                     <div className="text-left leading-none font-sans">
-                      <div className="text-[9px] uppercase font-bold text-gray-300">Administrateur</div>
+                      <div className="text-[9px] uppercase font-bold text-gray-300">{t('adminProfile')}</div>
                       <div className="text-xs font-semibold text-white mt-0.5 truncate max-w-[150px]">
                         {user.user_metadata?.full_name || user.email}
                       </div>
@@ -382,7 +384,7 @@ export default function App() {
                       title="Quitter l'espace admin temporairement pour voir le site client"
                     >
                       <Eye className="w-4 h-4 text-amber-300 animate-pulse" />
-                      <span>Voir le site client</span>
+                      <span>{t('viewClientSite')}</span>
                     </button>
 
                     {/* Exit / LogOut */}
@@ -410,7 +412,7 @@ export default function App() {
                     <Store className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">Catalogue Actif</div>
+                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">{t('catalogActive')}</div>
                     <div className="text-base sm:text-xl font-bold font-display text-[#302B27] mt-0.5 text-left">{products.length} Trésors</div>
                   </div>
                 </div>
@@ -420,7 +422,7 @@ export default function App() {
                     <Globe className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">Livrables Europe</div>
+                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">{t('deliverablesEurope')}</div>
                     <div className="text-base sm:text-xl font-bold font-display text-[#302B27] mt-0.5 text-left">{COUNTRIES.length} Pays</div>
                   </div>
                 </div>
@@ -430,7 +432,7 @@ export default function App() {
                     <Layers className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">Catégories</div>
+                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">{t('categoriesNav')}</div>
                     <div className="text-base sm:text-xl font-bold font-display text-[#302B27] mt-0.5 text-left">{categories.length} En Place</div>
                   </div>
                 </div>
@@ -440,7 +442,7 @@ export default function App() {
                     <Settings className="w-5 h-5 animate-spin-slow" />
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">Mode Système</div>
+                    <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider text-left">{t('systemMode')}</div>
                     <div className="text-xs font-bold text-[#23493C] mt-1.5 uppercase tracking-wide truncate text-left">
                       {localStorage.getItem('papagayo_demo_mode') === 'true' ? '🔄 Local Sandbox' : '📡 Cloud Synced'}
                     </div>
@@ -482,14 +484,27 @@ export default function App() {
               </div>
               
               <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-[#76736A]">
-                <button onClick={() => scrollToSection('hero')} className="hover:text-[#23493C] transition-colors">Nosotros</button>
-                <button onClick={() => scrollToSection('catalogue')} className="hover:text-[#23493C] transition-colors">Catálogo</button>
-                <button onClick={() => scrollToSection('about')} className="hover:text-[#23493C] transition-colors">Nuestra Filosofía</button>
-                <button onClick={() => scrollToSection('contact')} className="hover:text-[#23493C] transition-colors">Formulario</button>
+                <button onClick={() => scrollToSection('hero')} className="hover:text-[#23493C] transition-colors">{t('about')}</button>
+                <button onClick={() => scrollToSection('catalogue')} className="hover:text-[#23493C] transition-colors">{t('catalog')}</button>
+                <button onClick={() => scrollToSection('about')} className="hover:text-[#23493C] transition-colors">{t('artisans')}</button>
+                <button onClick={() => scrollToSection('contact')} className="hover:text-[#23493C] transition-colors">{t('contactUs')}</button>
               </div>
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Language Selector */}
+              <div className="hidden md:flex items-center bg-white/60 border border-[#EBE8E0] rounded-full px-2 py-1 shadow-sm hover:border-[#23493C] transition-colors">
+                <select 
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as Language)}
+                  className="bg-transparent border-none text-xs font-bold text-[#302B27] focus:outline-none focus:ring-0 cursor-pointer pl-2 pr-1 uppercase tracking-wider"
+                >
+                  <option value="en">EN</option>
+                  <option value="es">ES</option>
+                  <option value="fr">FR</option>
+                </select>
+              </div>
+
               {/* Country Selector with beautiful modern aesthetic */}
               <div className="hidden md:flex items-center bg-white/60 border border-white/80 rounded-full px-3.5 py-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:bg-white/95 transition-all">
                 <Globe className="w-4 h-4 text-[#8B5E34] mr-2" />
@@ -513,12 +528,12 @@ export default function App() {
                       className="flex items-center space-x-2 px-4 py-2 bg-[#23493C] text-white rounded-full text-xs font-semibold tracking-wide uppercase hover:bg-[#1C3A30] transition-colors shadow-sm"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Nouveau</span>
+                      <span>{t('admin')}</span>
                     </button>
                     <button
                       onClick={handleLogout}
                       className="p-2 text-[#76736A] hover:bg-black/5 rounded-full transition-colors"
-                      aria-label="Logout"
+                      aria-label={t('logout')}
                     >
                       <LogOut className="w-4.5 h-4.5" />
                     </button>
@@ -529,7 +544,7 @@ export default function App() {
                     className="flex items-center space-x-1.5 px-4.5 py-2 bg-white border border-[#EBE8E0] text-[#302B27] rounded-full text-xs font-semibold uppercase tracking-wide hover:border-[#23493C] hover:text-[#23493C] transition-all shadow-sm bg-white/60 backdrop-blur"
                   >
                     <LogIn className="w-3.5 h-3.5" />
-                    <span>Admin</span>
+                    <span>{t('admin')}</span>
                   </button>
                 )}
               </div>
@@ -579,35 +594,47 @@ export default function App() {
 
                   {/* Navigation links inside mobile viewport */}
                   <div className="flex flex-col space-y-4">
-                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">Navegación Directa</span>
+                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">Nav</span>
                     <button 
                       onClick={() => { scrollToSection('hero'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Nosotros</span>
+                      <span>{t('about')}</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                     <button 
                       onClick={() => { scrollToSection('catalogue'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Catálogo</span>
+                      <span>{t('catalog')}</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                     <button 
                       onClick={() => { scrollToSection('about'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Nuestra Filosofía</span>
+                      <span>{t('artisans')}</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
                     <button 
                       onClick={() => { scrollToSection('contact'); setMobileMenuOpen(false); }} 
                       className="text-left text-lg font-display font-semibold text-[#302B27] hover:text-[#23493C] transition-colors py-2 flex items-center justify-between cursor-pointer"
                     >
-                      <span>Formulario</span>
+                      <span>{t('contactUs')}</span>
                       <ArrowRight className="w-4 h-4 text-[#8B5E34]/50" />
                     </button>
+                    
+                    <div className="pt-2 border-t border-black/5 mt-2">
+                       <select 
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value as Language)}
+                        className="bg-transparent border-none text-xs font-bold text-[#302B27] focus:outline-none focus:ring-0 cursor-pointer pl-0 pr-1 uppercase tracking-wider w-full"
+                      >
+                        <option value="en">Language: EN</option>
+                        <option value="es">Idioma: ES</option>
+                        <option value="fr">Langue: FR</option>
+                      </select>
+                    </div>
                   </div>
 
                   {/* Session management inside mobile viewport */}
@@ -672,12 +699,11 @@ export default function App() {
               </div>
 
               <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-[4.2rem] font-bold tracking-tight text-white leading-[1.08] mb-6">
-                Des créations nées des mains,<br />
-                <span className="text-[#E3DCB9] font-medium italic">de la terre et de la tradition.</span>
+                {t('heroTitle').split(' ').map((word, i) => i > 1 ? <span key={i} className="text-[#E3DCB9] font-medium italic"> {word}</span> : <React.Fragment key={i}> {word}</React.Fragment>)}
               </h1>
               
               <p className="max-w-xl text-gray-200 text-base md:text-lg leading-relaxed mb-8">
-                Découvrez des pièces uniques faites main par des artisans d'Amérique latine, associées à d'authentiques cafés d'altitude cultivés exclusivement en Colombie par des familles de producteurs passionnés.
+                {t('heroSubtitle')}
               </p>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
@@ -685,14 +711,14 @@ export default function App() {
                   onClick={() => scrollToSection('catalogue')}
                   className="px-8 py-4 bg-[#23493C] text-white rounded-2xl font-semibold tracking-wide text-sm hover:bg-[#1C3A30] transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-2 shadow-lg cursor-pointer"
                 >
-                  <span>Explorer le Catalogue</span>
+                  <span>{t('catalog')}</span>
                   <ArrowRight className="w-4 h-4 text-[#DFDAC8]" />
                 </button>
                 <button 
                   onClick={() => scrollToSection('about')}
                   className="px-8 py-4 bg-white/10 hover:bg-white/15 text-white rounded-2xl font-semibold tracking-wide text-sm transition-all border border-white/10 hover:border-white/30 backdrop-blur-sm flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <span>Notre Philosophie</span>
+                  <span>{t('about')}</span>
                 </button>
               </div>
 
@@ -744,7 +770,7 @@ export default function App() {
               <div className="space-y-2.5">
                 <label className="text-[10px] uppercase font-extrabold tracking-widest text-[#8B5E34] flex items-center gap-1.5 font-sans">
                   <MapPin className="w-3.5 h-3.5 text-[#8B5E34]" />
-                  <span>Territoire d'Origine (Colombie)</span>
+                  <span>{t('originTerritory')}</span>
                 </label>
                 <div className="relative group">
                   <select
@@ -755,7 +781,7 @@ export default function App() {
                     }}
                     className="w-full appearance-none bg-[#FDFCF7]/90 border border-[#23493C]/15 hover:border-[#23493C]/45 text-[#302B27] rounded-2xl pl-11 pr-10 py-3.5 text-sm font-semibold shadow-xs transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#23493C]/20 focus:border-[#23493C] cursor-pointer"
                   >
-                    <option value="all">Tous les Territoires</option>
+                    <option value="all">{t('allTerritories')}</option>
                     {COLOMBIA_DEPARTMENTS.sort((a,b) => a.name.localeCompare(b.name)).map((dept) => (
                       <option key={dept.id} value={dept.id}>
                         {dept.name}
@@ -775,7 +801,7 @@ export default function App() {
               <div className="space-y-2.5">
                 <label className="text-[10px] uppercase font-extrabold tracking-widest text-[#8B5E34] flex items-center gap-1.5 font-sans">
                   <Layers className="w-3.5 h-3.5 text-[#8B5E34]" />
-                  <span>Catégorie de Produits</span>
+                  <span>{t('productCategory')}</span>
                 </label>
                 
                 {/* Mobile Dropdown (shown up to md) */}
@@ -788,7 +814,7 @@ export default function App() {
                     }}
                     className="w-full appearance-none bg-[#FDFCF7]/90 border border-[#23493C]/15 hover:border-[#23493C]/45 text-[#302B27] rounded-2xl pl-11 pr-10 py-3.5 text-sm font-semibold shadow-xs transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#23493C]/20 focus:border-[#23493C] cursor-pointer"
                   >
-                    <option value="all">Tous les Produits</option>
+                    <option value="all">{t('allProducts')}</option>
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.name}
@@ -817,7 +843,7 @@ export default function App() {
                         : 'bg-white hover:bg-[#FDFCF7] border-gray-200 text-[#76736A] hover:text-[#302B27] hover:border-gray-300'
                     }`}
                   >
-                    Tous les Produits
+                    {t('allProducts')}
                   </button>
                   {categories.map((cat) => {
                     const isActive = selectedCategory === cat.id;
@@ -869,112 +895,16 @@ export default function App() {
 
               <div className="flex items-center justify-between pb-6 border-b border-[#23493C]/10">
                 <div>
-                  <h2 className="font-display text-3xl font-semibold text-[#302B27] tracking-tight">Notre Sélection Unique / Selección Unica</h2>
-                  <p className="text-sm text-[#76736A] mt-1">Variations de prix dynamiques selon le pays d'expédition sélectionné.</p>
+                  <h2 className="font-display text-3xl font-semibold text-[#302B27] tracking-tight">{t('ourSelection')}</h2>
+                  <p className="text-sm text-[#76736A] mt-1">{t('priceVariationMsg')}</p>
                 </div>
                 <span className="px-3.5 py-1 bg-[#23493C]/5 text-[#23493C] text-xs font-bold uppercase rounded-full tracking-wider">
                   {filteredProducts.length} Merveilles
                 </span>
               </div>
 
-              {/* Terroir / Location Description and Audio Text Banner */}
-              {selectedLocation !== 'all' && (
-                <div className="relative overflow-hidden bg-gradient-to-br from-[#FDFCF7] to-[#F5F2E9] border border-[#23493C]/15 rounded-3xl p-5 sm:p-6 shadow-sm animate-fade-in">
-                  <div className="absolute top-0 right-0 w-28 h-28 bg-[#23493C]/3 rounded-bl-full pointer-events-none" />
-                  
-                  {/* Banner Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
-                    <div>
-                      <div className="text-[9px] uppercase font-bold tracking-widest text-[#8B5E34]">
-                        Terroir Sélectionné / Origen Territoríal
-                      </div>
-                      <h3 className="font-display text-2xl font-bold text-[#302B27] mt-0.5">
-                        {getStoryForId(selectedLocation).name_es || getStoryForId(selectedLocation).name}
-                      </h3>
-                      <p className="text-xs font-bold text-[#23493C] mt-0.5 uppercase tracking-wide">
-                        {getStoryForId(selectedLocation).specialty_es || getStoryForId(selectedLocation).specialty}
-                      </p>
-                    </div>
+              {/* Banner removed to prevent duplication with ColombiaMap story panel */}
 
-                    <button
-                      onClick={() => setSelectedLocation('all')}
-                      className="px-3.5 py-1.5 self-start sm:self-auto bg-white hover:bg-red-50 border border-[#23493C]/15 hover:border-red-200 text-[10px] font-bold text-[#76736A] hover:text-red-600 rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 uppercase tracking-wider"
-                    >
-                      <span>Voir tout / Mostrar todo</span>
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Place Story */}
-                  <div className="bg-white/70 backdrop-blur-md p-4 rounded-2xl border border-[#23493C]/5 shadow-2xs my-3 text-xs sm:text-sm text-[#76736A] leading-relaxed italic">
-                    "{getStoryForId(selectedLocation).story_es || getStoryForId(selectedLocation).story}"
-                  </div>
-
-                  {/* Artisans and Techniques detail grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 bg-white/40 border border-[#23493C]/5 rounded-2xl">
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">Créateurs associés / Productores</span>
-                      <span className="text-xs font-bold text-[#302B27]">
-                        {getStoryForId(selectedLocation).artisanName_es || getStoryForId(selectedLocation).artisanName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">Savoir-faire / Sabiduría</span>
-                      <span className="text-xs font-bold text-[#302B27]">
-                        {getStoryForId(selectedLocation).technique_es || getStoryForId(selectedLocation).technique}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Narration control block */}
-                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3.5 border-t border-[#23493C]/5">
-                    <button
-                      onClick={() => {
-                        if (isPlayingBanner) {
-                          if (typeof window !== 'undefined' && window.speechSynthesis) {
-                            window.speechSynthesis.cancel();
-                          }
-                          setIsPlayingBanner(false);
-                        } else {
-                          if (typeof window !== 'undefined' && window.speechSynthesis) {
-                            window.speechSynthesis.cancel();
-                            
-                            // Speak bilingual depending on context (prefer Spanish/French)
-                            const detail = getStoryForId(selectedLocation);
-                            const audioText = detail.audioText_es || detail.audioText;
-                            const utterance = new SpeechSynthesisUtterance(audioText);
-                            utterance.lang = detail.audioText_es ? 'es-ES' : 'fr-FR';
-                            
-                            const voices = window.speechSynthesis.getVoices();
-                            const desiredVoice = voices.find(v => v.lang.startsWith(detail.audioText_es ? 'es' : 'fr'));
-                            if (desiredVoice) utterance.voice = desiredVoice;
-                            
-                            utterance.onend = () => setIsPlayingBanner(false);
-                            utterance.onerror = () => setIsPlayingBanner(false);
-                            
-                            window.speechSynthesis.speak(utterance);
-                            setIsPlayingBanner(true);
-                          }
-                        }
-                      }}
-                      className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
-                        isPlayingBanner
-                          ? 'bg-red-500 text-white hover:bg-red-600 scale-102'
-                          : 'bg-[#23493C] text-white hover:bg-[#1C3A30] scale-102 hover:scale-105'
-                      }`}
-                    >
-                      <Headphones className="w-3.5 h-3.5 shrink-0" />
-                      <span>
-                        {isPlayingBanner ? "Arrêter la narration / Parar audio" : "Escuchar historia / Écouter l'histoire"}
-                      </span>
-                    </button>
-                    
-                    <span className="text-[9px] text-[#8B5E34] uppercase font-bold tracking-widest bg-[#8B5E34]/5 px-2.5 py-1 rounded-lg">
-                      Origine Certifiée ✓
-                    </span>
-                  </div>
-                </div>
-              )}
 
               {loading ? (
                 <div className="py-24 flex justify-center">
@@ -985,14 +915,14 @@ export default function App() {
                   <div className="w-14 h-14 bg-white/50 rounded-full flex items-center justify-center mb-4">
                     <Sparkles className="w-7 h-7 text-[#8B5E34]" />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#302B27] mb-1">Aucun trésor trouvé</h3>
-                  <p className="text-sm text-[#76736A] mb-6 max-w-md">Aucun produit ne correspond à cette sélection pour le moment. Découvrez nos autres catégories ou générez des produits de démonstration.</p>
+                  <h3 className="text-lg font-semibold text-[#302B27] mb-1">{t('noTreasuresTitle')}</h3>
+                  <p className="text-sm text-[#76736A] mb-6 max-w-md">{t('noTreasuresDesc')}</p>
                   <button 
                     onClick={handleSeed}
                     className="px-5 py-3 bg-[#23493C] hover:bg-[#1C3A30] text-white text-xs font-medium uppercase tracking-wider rounded-xl hover:shadow transition-all flex items-center justify-center space-x-2"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Générer les échantillons Colombiens</span>
+                    <span>{t('generateSamples')}</span>
                   </button>
                 </div>
               ) : (
@@ -1058,39 +988,45 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-xl font-display font-bold text-[#302B27]">Papagayo Sourcing</h3>
-                    <p className="text-[10px] text-[#23493C] uppercase tracking-wider font-extrabold">Qualité d'Origine Garantie</p>
+                    <p className="text-[10px] text-[#23493C] uppercase tracking-wider font-extrabold">{t('guaranteedQuality')}</p>
                   </div>
                 </div>
 
                 <div className="inline-flex items-center space-x-2 px-3 py-1 bg-[#23493C]/5 text-[#23493C] rounded-full text-xs font-semibold uppercase tracking-wider">
                   <Feather className="w-3 h-3 text-[#23493C]" />
-                  <span>Artisanat & Café d'Origine Exceptionnels</span>
+                  <span>{t('aboutPills')}</span>
                 </div>
                 <h2 className="font-display text-4xl lg:text-5xl font-bold tracking-tight text-[#302B27] leading-tight">
-                  Papagayo Sourcing<br />
-                  <span className="text-[#8B5E34]">Artisans de la Terre.</span>
+                  {t('aboutTitle1')}<br />
+                  <span className="text-[#8B5E34]">{t('aboutTitle2')}</span>
                 </h2>
                 <blockquote className="border-l-4 border-[#23493C] pl-4 italic text-lg text-[#302B27] font-medium leading-relaxed my-4">
-                  “De l’Amérique latine vers l’Europe, nous partageons des créations nées des mains, de la terre et de la tradition.”
+                  {t('aboutQuote')}
                 </blockquote>
                 <p className="text-base text-[#76736A] leading-relaxed">
-                  Nous travaillons directement aux côtés d’artisans, de communautés autochtones et de producteurs de café colombien afin de proposer des pièces uniques et des cafés d’origine qui portent la voix de celles et ceux qui les créent. Chaque objet raconte une histoire. Chaque tasse exprime un territoire. Chaque collaboration construit un pont entre les cultures.
+                  {language === 'es' ? 'Trabajamos directamente junto a artesanos, comunidades indígenas y productores de café colombiano para ofrecer piezas únicas y cafés de origen que llevan la voz de quienes los crean. Cada objeto cuenta una historia. Cada taza expresa un territorio. Cada colaboración construye un puente entre culturas.' : 
+                   language === 'en' ? 'We work directly alongside artisans, indigenous communities, and Colombian coffee producers to offer unique pieces and origin coffees that carry the voice of those who create them. Every object tells a story. Every cup expresses a territory. Every collaboration builds a bridge between cultures.' :
+                   'Nous travaillons directement aux côtés d’artisans, de communautés autochtones et de producteurs de café colombien afin de proposer des pièces uniques et des cafés d’origine qui portent la voix de celles et ceux qui les créent. Chaque objet raconte une histoire. Chaque tasse exprime un territoire. Chaque collaboration construit un pont entre les cultures.'}
                 </p>
                 <p className="text-base text-[#76736A] leading-relaxed">
-                  Notre café est cultivé dans les montagnes de Colombie par des familles de producteurs qui transmettent leur savoir-faire et leur passion de génération en génération. Nos créations artisanales reflètent l’identité, la mémoire et la richesse culturelle des peuples qui les façonnent à la main, en préservant des techniques et des connaissances ancestrales.
+                  {language === 'es' ? 'Nuestro café se cultiva en las montañas de Colombia por familias productoras que transmiten su saber y pasión de generación en generación. Nuestras creaciones artesanales reflejan la identidad, la memoria y la riqueza cultural de los pueblos que las moldean a mano, preservando técnicas y conocimientos ancestrales.' : 
+                   language === 'en' ? 'Our coffee is grown in the mountains of Colombia by producing families who transmit their know-how and passion from generation to generation. Our artisanal creations reflect the identity, memory, and cultural wealth of the peoples who shape them by hand, preserving ancestral techniques and knowledge.' :
+                   'Notre café est cultivé dans les montagnes de Colombie par des familles de producteurs qui transmettent leur savoir-faire et leur passion de génération en génération. Nos créations artisanales reflètent l’identité, la mémoire et la richesse culturelle des peuples qui les façonnent à la main, en préservant des techniques et des connaissances ancestrales.'}
                 </p>
                 <p className="text-base text-[#76736A] leading-relaxed">
-                  Parce que nous croyons que les personnes doivent être aussi présentes que les produits qu’elles offrent au monde. Plus que des produits, nous partageons des histoires, des traditions et le lien humain qui leur donne naissance.
+                  {language === 'es' ? 'Porque creemos que las personas deben estar tan presentes como los productos que ofrecen al mundo. Más que productos, compartimos historias, tradiciones y el vínculo humano que les da vida.' : 
+                   language === 'en' ? 'Because we believe that people should be as present as the products they offer to the world. More than products, we share stories, traditions, and the human connection that gives them life.' :
+                   'Parce que nous croyons que les personnes doivent être aussi présentes que les produits qu’elles offrent au monde. Plus que des produits, nous partageons des histoires, des traditions et le lien humain qui leur donne naissance.'}
                 </p>
                 
                 <div className="flex items-center space-x-6 pt-2">
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-6 h-6 text-[#23493C]" />
-                    <span className="text-xs font-bold text-[#302B27] uppercase tracking-wider">Commerce Équitable</span>
+                    <span className="text-xs font-bold text-[#302B27] uppercase tracking-wider">{language === 'es' ? 'Comercio Justo' : language === 'en' ? 'Fair Trade' : 'Commerce Équitable'}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Heart className="w-6 h-6 text-[#8B5E34]" />
-                    <span className="text-xs font-bold text-[#302B27] uppercase tracking-wider">100% Fait Main</span>
+                    <span className="text-xs font-bold text-[#302B27] uppercase tracking-wider">{language === 'es' ? '100% Hecho a Mano' : language === 'en' ? '100% Handmade' : '100% Fait Main'}</span>
                   </div>
                 </div>
               </div>
@@ -1103,9 +1039,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-2xl bg-[#23493C]/5 flex items-center justify-center mb-6">
                     <Coffee className="w-6 h-6 text-[#23493C]" />
                   </div>
-                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">Micro-Lots Rares</h3>
+                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">{language === 'es' ? 'Microlotes Raros' : language === 'en' ? 'Rare Micro-Lots' : 'Micro-Lots Rares'}</h3>
                   <p className="text-sm text-[#76736A] leading-relaxed">
-                     Des cafés sélectionnés par score de tasse supérieure à 84+, fraîchement torréfiés par petites quantités en France pour garder une intensité aromatique native impeccable.
+                     {language === 'es' ? 'Cafés seleccionados con puntuación en taza superior a 84+, tostados frescos en pequeñas cantidades para mantener una intensidad aromática nativa impecable.' : language === 'en' ? 'Coffees selected with a cup score above 84+, freshly roasted in small batches to preserve impeccable native aromatic intensity.' : 'Des cafés sélectionnés par score de tasse supérieure à 84+, fraîchement torréfiés par petites quantités en France pour garder une intensité aromatique native impeccable.'}
                   </p>
                 </div>
 
@@ -1114,9 +1050,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-2xl bg-[#8B5E34]/5 flex items-center justify-center mb-6">
                     <Feather className="w-6 h-6 text-[#8B5E34]" />
                   </div>
-                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">Artisanat Wayuu & Zenú</h3>
+                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">{language === 'es' ? 'Artesanía Wayuu & Zenú' : language === 'en' ? 'Wayuu & Zenú Crafts' : 'Artisanat Wayuu & Zenú'}</h3>
                   <p className="text-sm text-[#76736A] leading-relaxed">
-                     Sacs Mochila en crochet ou chapeaux tressés par des femmes autochtones des communautés Wayuu du désert guajiro ou Zenú de Córdoba, signés pour préserver l'identité.
+                     {language === 'es' ? 'Mochilas tejidas a crochet o sombreros trenzados por mujeres indígenas de las comunidades Wayuu del desierto guajiro o Zenú de Córdoba, sellados para preservar la identidad.' : language === 'en' ? 'Crocheted Mochila bags or woven hats by indigenous women from the Wayuu communities of the Guajiro desert or Zenú from Córdoba, signed to preserve identity.' : 'Sacs Mochila en crochet ou chapeaux tressés par des femmes autochtones des communautés Wayuu du désert guajiro ou Zenú de Córdoba, signés pour préserver l\'identité.'}
                   </p>
                 </div>
 
@@ -1125,9 +1061,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-2xl bg-[#23493C]/5 flex items-center justify-center mb-6">
                     <Map className="w-6 h-6 text-[#23493C]" />
                   </div>
-                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">GPS d'Origine Intégré</h3>
+                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">{language === 'es' ? 'GPS de Origen Integrado' : language === 'en' ? 'Integrated Origin GPS' : 'GPS d\'Origine Intégré'}</h3>
                   <p className="text-sm text-[#76736A] leading-relaxed">
-                     Notre concept interactif permet d’associer chaque lot à son département colombo-originaire. Visualisez l’origine exacte d'un coup d’œil sur l'écran.
+                     {language === 'es' ? 'Nuestro concepto interactivo permite asociar cada lote a su departamento colombo-originario. Visualiza el origen exacto de un vistazo en la pantalla.' : language === 'en' ? 'Our interactive concept associates each lot with its native Colombian department. Visualize the exact origin at a glance on the screen.' : 'Notre concept interactif permet d’associer chaque lot à son département colombo-originaire. Visualisez l’origine exacte d\'un coup d’œil sur l\'écran.'}
                   </p>
                 </div>
 
@@ -1136,9 +1072,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-2xl bg-[#8B5E34]/5 flex items-center justify-center mb-6">
                     <Globe className="w-6 h-6 text-[#8B5E34]" />
                   </div>
-                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">Tarification de Pays transparente</h3>
+                  <h3 className="font-display text-xl font-semibold text-[#302B27] mb-2">{language === 'es' ? 'Precios Transparentes' : language === 'en' ? 'Transparent Country Pricing' : 'Tarification de Pays transparente'}</h3>
                   <p className="text-sm text-[#76736A] leading-relaxed">
-                     Puisque nous collaborons avec des hubs logistiques locaux, le prix final s'adapte selon la douane locale, les taxes routières et les tarifs postaux du pays choisi.
+                     {language === 'es' ? 'Como colaboramos con centros logísticos locales, el precio final se adapta según las aduanas, impuestos y tarifas postales del país elegido.' : language === 'en' ? 'Since we collaborate with local logistics hubs, the final price adapts according to customs, taxes, and postal rates of the selected country.' : 'Puisque nous collaborons avec des hubs logistiques locaux, le prix final s\'adapte selon la douane locale, les taxes routières et les tarifs postaux du pays choisi.'}
                   </p>
                 </div>
 
@@ -1165,28 +1101,27 @@ export default function App() {
                   Papagayo<span className="text-[#DFDAC8]">.</span>
                 </span>
                 <p className="text-sm text-gray-400 max-w-sm leading-relaxed">
-                  L'excellence colombienne à portée de main. Découvrez une sélection rigoureuse de produits gastronomiques et artisanaux de première qualité importés directement d'Amérique du Sud pour l'Europe.
+                  {language === 'es' ? 'La excelencia colombiana a tu alcance. Descubre una rigurosa selección de productos gastronómicos y artesanales importados directamente desde Sudamérica.' : language === 'en' ? 'Colombian excellence at your fingertips. Discover a rigorous selection of premium gastronomic and artisanal products imported directly from South America.' : 'L\'excellence colombienne à portée de main. Découvrez une sélection rigoureuse de produits gastronomiques et artisanaux importés directement d\'Amérique du Sud.'}
                 </p>
                 <div className="flex items-center space-x-3 text-xs bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2 w-max">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span>Logistique active pour toute l'Europe</span>
+                  <span>{language === 'es' ? 'Logística activa para Europa' : language === 'en' ? 'Logistics active for Europe' : 'Logistique active pour toute l\'Europe'}</span>
                 </div>
               </div>
 
               {/* Navigation Column */}
               <div>
-                <h4 className="font-display text-white text-sm font-semibold uppercase tracking-wider mb-6">Le catalogue</h4>
+                <h4 className="font-display text-white text-sm font-semibold uppercase tracking-wider mb-6">{t('catalog')}</h4>
                 <ul className="space-y-4 text-sm">
-                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">Café de spécialité</button></li>
-                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">Artisanat Wayuu</button></li>
-                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">Chocolats fins</button></li>
-                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">Nouveautés hebdomadaires</button></li>
+                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">{language === 'es' ? 'Café de especialidad' : language === 'en' ? 'Specialty Coffee' : 'Café de spécialité'}</button></li>
+                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">{language === 'es' ? 'Artesanía Wayuu' : language === 'en' ? 'Wayuu Crafts' : 'Artisanat Wayuu'}</button></li>
+                  <li><button onClick={() => scrollToSection('catalogue')} className="hover:text-white transition-colors">{language === 'es' ? 'Chocolates finos' : language === 'en' ? 'Fine Chocolates' : 'Chocolats fins'}</button></li>
                 </ul>
               </div>
 
               {/* Sourcing Origin Links Column */}
               <div>
-                <h4 className="font-display text-white text-sm font-semibold uppercase tracking-wider mb-6">Départements</h4>
+                <h4 className="font-display text-white text-sm font-semibold uppercase tracking-wider mb-6">{language === 'es' ? 'Departamentos' : language === 'en' ? 'Departments' : 'Départements'}</h4>
                 <ul className="space-y-4 text-sm text-gray-400">
                   <li><span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setActiveDepartment('CO-QUI'); scrollToSection('catalogue'); }}>Quindío (Café)</span></li>
                   <li><span className="hover:text-white cursor-pointer transition-colors" onClick={() => { setActiveDepartment('CO-LAG'); scrollToSection('catalogue'); }}>La Guajira (Wayuu)</span></li>
@@ -1212,14 +1147,14 @@ export default function App() {
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
                 <span>© 2026 Papagayo Inc. Tous droits réservés.</span>
                 <span className="hidden sm:inline text-white/5">|</span>
-                <span className="hover:text-white transition-colors cursor-pointer">Conditions générales d'importation</span>
+                <span className="hover:text-white transition-colors cursor-pointer">{language === 'es' ? 'Condiciones generales de importación' : language === 'en' ? 'General Import Conditions' : 'Conditions générales d\'importation'}</span>
                 <span className="hidden sm:inline text-white/5">|</span>
-                <span className="hover:text-white transition-colors cursor-pointer">Politique de confidentialité</span>
+                <span className="hover:text-white transition-colors cursor-pointer">{language === 'es' ? 'Política de privacidad' : language === 'en' ? 'Privacy Policy' : 'Politique de confidentialité'}</span>
               </div>
               
               <div className="mt-4 sm:mt-0 font-mono text-[10px] tracking-widest text-[#E3DCB9]/40 flex items-center space-x-1 uppercase">
                 <Coffee className="w-3 h-3 text-[#E3DCB9]/30 mr-1" />
-                <span>Crafted for european connoisseurs</span>
+                <span>{language === 'es' ? 'Creado para conocedores europeos' : language === 'en' ? 'Crafted for european connoisseurs' : 'Crafted for european connoisseurs'}</span>
               </div>
             </div>
 
@@ -1252,9 +1187,9 @@ export default function App() {
                   <Heart className="w-8 h-8 text-[#23493C]" />
                 </div>
 
-                <h3 className="font-display text-2xl font-bold text-[#302B27] tracking-tight mb-2">Acceso Administrador</h3>
+                <h3 className="font-display text-2xl font-bold text-[#302B27] tracking-tight mb-2">{t('adminAccess')}</h3>
                 <p className="text-xs text-[#76736A] leading-relaxed mb-5">
-                  Connectez-vous avec vos identifiants ou utilisez le mode démo pour accéder au tableau de bord Papagayo.
+                  {language === 'es' ? 'Inicia sesión con tus credenciales o usa el modo de demostración para acceder al panel de Papagayo.' : language === 'en' ? 'Log in with your credentials or use demo mode to access the Papagayo dashboard.' : 'Connectez-vous avec vos identifiants ou utilisez le mode démo pour accéder au tableau de bord Papagayo.'}
                 </p>
 
                 {/* Email / Password Form */}
@@ -1262,7 +1197,7 @@ export default function App() {
                   <div>
                     <label className="block text-[10px] font-bold text-[#302B27] uppercase tracking-wider mb-1 flex items-center">
                       <Mail className="w-3 h-3 mr-1 text-[#23493C]" />
-                      <span>Adresse Email</span>
+                      <span>{t('email')}</span>
                     </label>
                     <input 
                       type="email"
@@ -1277,7 +1212,7 @@ export default function App() {
                   <div>
                     <label className="block text-[10px] font-bold text-[#302B27] uppercase tracking-wider mb-1 flex items-center">
                       <Lock className="w-3 h-3 mr-1 text-[#23493C]" />
-                      <span>Mot de Passe</span>
+                      <span>{t('password')}</span>
                     </label>
                     <input 
                       type="password"
@@ -1300,7 +1235,7 @@ export default function App() {
                     disabled={authLoading}
                     className="w-full py-3 px-6 bg-[#23493C] hover:bg-[#1C3A30] text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-75"
                   >
-                    <span>{authLoading ? "Connexion..." : "Se connecter / Entrar"}</span>
+                    <span>{authLoading ? (language === 'es' ? "Iniciando..." : language === 'en' ? "Connecting..." : "Connexion...") : t('login')}</span>
                   </button>
                 </form>
               </motion.div>
