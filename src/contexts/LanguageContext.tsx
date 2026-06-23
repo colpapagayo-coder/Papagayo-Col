@@ -208,47 +208,149 @@ interface LanguageContextProps {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
+  detectedCountryCode: string;
 }
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
+const fetchWithTimeout = async (url: string, timeoutMs: number = 3000): Promise<Response> => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+};
+
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<Language>('es');
+  const [detectedCountryCode, setDetectedCountryCode] = useState<string>('FR');
 
   useEffect(() => {
-    // Determine language by IP
-    const detectLanguageByIP = async () => {
+    const getLanguageFromCountry = (country: string): Language => {
+      const c = country.toUpperCase();
+      const spanishCountries = ['ES', 'CO', 'MX', 'AR', 'CL', 'PE', 'VE', 'EC', 'BO', 'UY', 'PY', 'PR', 'GT', 'HN', 'SV', 'NI', 'CR', 'PA', 'DO'];
+      const frenchCountries = ['FR', 'BE', 'CH', 'CA', 'LU', 'MC'];
+      const germanCountries = ['DE', 'AT', 'CH', 'LI'];
+      const italianCountries = ['IT', 'CH'];
+
+      if (spanishCountries.includes(c)) return 'es';
+      if (frenchCountries.includes(c)) return 'fr';
+      if (germanCountries.includes(c)) return 'de';
+      if (italianCountries.includes(c)) return 'it';
+      return 'en';
+    };
+
+    const getLanguageFromBrowser = (): Language => {
+      const browserLang = navigator.language || (navigator.languages && navigator.languages[0]) || '';
+      const langLower = browserLang.toLowerCase();
+      if (langLower.startsWith('es')) return 'es';
+      if (langLower.startsWith('fr')) return 'fr';
+      if (langLower.startsWith('de')) return 'de';
+      if (langLower.startsWith('it')) return 'it';
+      return 'en';
+    };
+
+    // Determine language by IP with multi-service fallbacks
+    const detectLanguageAndCountry = async () => {
       try {
         const cachedLang = localStorage.getItem('papagayo_preferred_lang');
         if (cachedLang && ['en', 'es', 'fr', 'de', 'it'].includes(cachedLang)) {
           setLanguage(cachedLang as Language);
+          
+          const cachedCountry = localStorage.getItem('papagayo_delivery_country');
+          if (cachedCountry) {
+            setDetectedCountryCode(cachedCountry);
+          } else {
+            const defaultCountryMap: Record<Language, string> = {
+              es: 'ES',
+              fr: 'FR',
+              de: 'DE',
+              it: 'IT',
+              en: 'FR'
+            };
+            setDetectedCountryCode(defaultCountryMap[cachedLang as Language] || 'FR');
+          }
           return;
         }
 
-        const res = await fetch('https://ipapi.co/json/');
-        if (res.ok) {
-          const data = await res.json();
-          const country = data.country;
-          let newLang: Language = 'en';
+        let detectedCountry = '';
+        let detectedLang: Language | null = null;
 
-          if (country === 'ES' || country === 'CO' || country === 'MX' || country === 'AR' || country === 'CL' || country === 'PE') {
-            newLang = 'es';
-          } else if (country === 'FR' || country === 'BE' || country === 'CH' || country === 'CA') {
-            newLang = 'fr';
-          } else if (country === 'DE' || country === 'AT') {
-            newLang = 'de';
-          } else if (country === 'IT') {
-            newLang = 'it';
+        // Service 1: ipapi.co
+        try {
+          const res = await fetchWithTimeout('https://ipapi.co/json/', 2500);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.country) {
+              detectedCountry = data.country;
+            }
           }
+        } catch (err) {
+          console.warn('ipapi.co failed, trying freeipapi.com:', err);
+        }
 
-          setLanguage(newLang);
+        // Service 2: freeipapi.com
+        if (!detectedCountry) {
+          try {
+            const res = await fetchWithTimeout('https://freeipapi.com/api/json', 2500);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.countryCode) {
+                detectedCountry = data.countryCode;
+              }
+            }
+          } catch (err) {
+            console.warn('freeipapi.com failed, trying ipwho.is:', err);
+          }
+        }
+
+        // Service 3: ipwho.is
+        if (!detectedCountry) {
+          try {
+            const res = await fetchWithTimeout('https://ipwho.is/', 2500);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.success && data.country_code) {
+                detectedCountry = data.country_code;
+              }
+            }
+          } catch (err) {
+            console.warn('ipwho.is failed, using browser fallback:', err);
+          }
+        }
+
+        if (detectedCountry) {
+          detectedLang = getLanguageFromCountry(detectedCountry);
+          setDetectedCountryCode(detectedCountry);
+        } else {
+          detectedLang = getLanguageFromBrowser();
+          const defaultCountryMap: Record<Language, string> = {
+            es: 'ES',
+            fr: 'FR',
+            de: 'DE',
+            it: 'IT',
+            en: 'FR'
+          };
+          setDetectedCountryCode(defaultCountryMap[detectedLang] || 'FR');
+        }
+
+        if (detectedLang) {
+          setLanguage(detectedLang);
         }
       } catch (err) {
         console.error('Error detecting IP location for language:', err);
+        // Absolute fallback to browser
+        const browserFallback = getLanguageFromBrowser();
+        setLanguage(browserFallback);
       }
     };
     
-    detectLanguageByIP();
+    detectLanguageAndCountry();
   }, []);
 
   const t = (key: string): string => {
@@ -264,7 +366,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage, t, detectedCountryCode }}>
       {children}
     </LanguageContext.Provider>
   );

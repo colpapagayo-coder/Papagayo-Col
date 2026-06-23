@@ -30,7 +30,7 @@ const COUNTRIES = [
 ];
 
 export default function App() {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, t, detectedCountryCode } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [activeDepartment, setActiveDepartment] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
@@ -44,9 +44,39 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<Category[]>([]);
   const [prefilledProductQuery, setPrefilledProductQuery] = useState('');
-  const [deliveryCountry, setDeliveryCountry] = useState('FR');
+  const [deliveryCountry, setDeliveryCountry] = useState<string>(() => {
+    const saved = localStorage.getItem('papagayo_delivery_country');
+    if (saved && ['FR', 'ES', 'DE', 'IT'].includes(saved)) {
+      return saved;
+    }
+    return 'FR';
+  });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleSetDeliveryCountry = (country: string) => {
+    setDeliveryCountry(country);
+    localStorage.setItem('papagayo_delivery_country', country);
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('papagayo_delivery_country');
+    if (!saved) {
+      const upperCode = detectedCountryCode.toUpperCase();
+      if (['FR', 'ES', 'DE', 'IT'].includes(upperCode)) {
+        setDeliveryCountry(upperCode);
+      } else {
+        const langCountryMap: Record<string, string> = {
+          es: 'ES',
+          fr: 'FR',
+          de: 'DE',
+          it: 'IT'
+        };
+        const fallback = langCountryMap[language] || 'FR';
+        setDeliveryCountry(fallback);
+      }
+    }
+  }, [detectedCountryCode, language]);
 
   const loadCategories = () => {
     const savedCats = localStorage.getItem('papagayo_categories');
@@ -512,7 +542,7 @@ export default function App() {
                 <Globe className="w-4 h-4 text-[#8B5E34] mr-2" />
                 <select 
                   value={deliveryCountry}
-                  onChange={(e) => setDeliveryCountry(e.target.value)}
+                  onChange={(e) => handleSetDeliveryCountry(e.target.value)}
                   className="bg-transparent border-none text-xs font-semibold text-[#302B27] focus:outline-none focus:ring-0 cursor-pointer pr-1"
                 >
                   {COUNTRIES.map(c => (
@@ -584,7 +614,7 @@ export default function App() {
                       <Globe className="w-4 h-4 text-[#8B5E34] mr-2" />
                       <select 
                         value={deliveryCountry}
-                        onChange={(e) => setDeliveryCountry(e.target.value)}
+                        onChange={(e) => handleSetDeliveryCountry(e.target.value)}
                         className="bg-transparent border-none text-xs font-semibold text-[#302B27] focus:outline-none focus:ring-0 cursor-pointer w-full py-1"
                       >
                         {COUNTRIES.map(c => (
@@ -888,7 +918,7 @@ export default function App() {
                 </div>
                 <select 
                   value={deliveryCountry}
-                  onChange={(e) => setDeliveryCountry(e.target.value)}
+                  onChange={(e) => handleSetDeliveryCountry(e.target.value)}
                   className="bg-transparent border-none text-sm font-semibold text-[#302B27] focus:outline-none focus:ring-0 cursor-pointer"
                 >
                   {COUNTRIES.map(c => (
