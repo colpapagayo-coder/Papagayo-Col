@@ -1,6 +1,5 @@
 import { useState, useRef, ChangeEvent, FormEvent, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { dbService } from '../supabase';
 import { COLOMBIA_DEPARTMENTS } from '../departments';
 import { ColombiaMap } from './ColombiaMap';
 import { Product, Category, CountryPricingConfig } from '../types';
@@ -145,13 +144,7 @@ export function AdminPanel({
         } catch {}
       }
 
-      const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const dbProds: Product[] = [];
-      querySnapshot.forEach((doc) => {
-        dbProds.push({ id: doc.id, ...doc.data() } as Product);
-      });
-        
+      const dbProds = await dbService.getProducts();
       const combined = [...dbProds];
       localProds.forEach((lp) => {
         if (!combined.some(dp => dp.id === lp.id)) {
@@ -186,13 +179,7 @@ export function AdminPanel({
         } catch {}
       }
 
-      const q = query(collection(db, 'product_requests'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const dbSugs: any[] = [];
-      querySnapshot.forEach((doc) => {
-        dbSugs.push({ id: doc.id, ...doc.data() });
-      });
-
+      const dbSugs = await dbService.getProductRequests();
       const combined = [...dbSugs];
       localSugs.forEach((ls) => {
         const alreadyInDb = dbSugs.some(ds => 
@@ -355,17 +342,17 @@ export function AdminPanel({
       // 2. Database update or insert
       try {
         const productData = { ...productPayload };
-        delete (productData as any).id; // ID is the document ID in Firestore
+        delete (productData as any).id; // ID is the document ID
 
         if (editingProduct) {
-          await updateDoc(doc(db, 'products', targetId), {
-            ...productData,
-            updatedAt: serverTimestamp()
+          await dbService.updateProduct(targetId, {
+            ...productData
           });
         } else {
-          await addDoc(collection(db, 'products'), {
+          await dbService.insertProduct({
             ...productData,
-            createdAt: serverTimestamp()
+            id: targetId,
+            createdAt: Date.now()
           });
         }
       } catch (dbErr) {
@@ -524,13 +511,12 @@ export function AdminPanel({
         });
         localStorage.setItem('papagayo_local_products', JSON.stringify(revisedProducts));
         
-        // Push updates to Firestore
+        // Push updates to Supabase
         for (const item of revisedProducts) {
           try {
-            await updateDoc(doc(db, 'products', item.id), {
+            await dbService.updateProduct(item.id, {
               prices: item.prices,
-              basePrice: item.basePrice,
-              updatedAt: serverTimestamp()
+              basePrice: item.basePrice
             });
           } catch {}
         }
@@ -552,9 +538,9 @@ export function AdminPanel({
     if (!confirm("Voulez-vous vraiment supprimer ce produit de l'inventaire ?")) return;
     
     try {
-      await deleteDoc(doc(db, 'products', prodId));
+      await dbService.deleteProduct(prodId);
     } catch (e) {
-      console.warn("Firestore delete failed, operating locally:", e);
+      console.warn("Supabase delete failed, operating locally:", e);
     } finally {
       let localProducts: Product[] = [];
       const savedLocalProducts = localStorage.getItem('papagayo_local_products');
@@ -575,11 +561,11 @@ export function AdminPanel({
   // Archive request
   const handleMarkRequestDone = async (reqId: string) => {
     try {
-      // 1. Try to delete from Firestore
+      // 1. Try to delete from Supabase
       try {
-        await deleteDoc(doc(db, 'product_requests', reqId));
+        await dbService.deleteProductRequest(reqId);
       } catch (dbErr) {
-        console.warn("Firestore database delete issue:", dbErr);
+        console.warn("Supabase database delete issue:", dbErr);
       }
 
       // 2. Filter and update localStorage

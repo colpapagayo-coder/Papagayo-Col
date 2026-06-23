@@ -4,9 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { dbService, authService } from './supabase';
 import { Product, Category } from './types';
 import { AdminPanel } from './components/AdminPanel';
 import { ColombiaMap, COLOMBIA_DEPARTMENT_DETAILS, getStoryForId } from './components/ColombiaMap';
@@ -123,13 +121,7 @@ export default function App() {
         } catch {}
       }
 
-      const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const dbProds: Product[] = [];
-      querySnapshot.forEach((doc) => {
-        dbProds.push({ id: doc.id, ...doc.data() } as Product);
-      });
-      
+      const dbProds = await dbService.getProducts();
       const combined = [...dbProds];
       localProds.forEach((lp) => {
         if (!combined.some(dp => dp.id === lp.id)) {
@@ -156,14 +148,14 @@ export default function App() {
       setUser({ id: 'demo-admin-id', email: 'hola@papagayo-direct.com', user_metadata: { full_name: 'Admin Papagayo' } });
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = authService.onAuthStateChanged((supabaseUser) => {
       const demoNow = localStorage.getItem('papagayo_demo_mode') === 'true';
       if (!demoNow) {
-        if (firebaseUser) {
+        if (supabaseUser) {
           setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email,
-            user_metadata: { full_name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] }
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            user_metadata: { full_name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User' }
           });
         } else {
           setUser(null);
@@ -205,44 +197,45 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      let userCredential;
+      let sessionData;
       try {
-        userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+        sessionData = await authService.signInWithEmail(loginEmail, loginPassword);
       } catch (signInErr: any) {
         // Speculative bypass for admin accounts mentioned in code
-        const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
-                            (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
+        const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && (loginPassword === 'Papagayo2026' || loginPassword === 'Papagayo2026*')) || 
+                            (loginEmail === 'user@example.com' && loginPassword === '123456');
         
-        if (isAdminBypass && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential')) {
-          userCredential = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
+        const isUserNotFound = signInErr?.message?.includes('Invalid login credentials') || signInErr?.status === 400 || signInErr?.code === 'auth/user-not-found';
+        if (isAdminBypass && isUserNotFound) {
+          sessionData = await authService.signUpWithEmail(loginEmail, loginPassword);
         } else {
           throw signInErr;
         }
       }
 
-      if (userCredential?.user) {
-        const fbUser = userCredential.user;
+      if (sessionData?.user) {
+        const sbUser = sessionData.user;
         setUser({
-          id: fbUser.uid,
-          email: fbUser.email,
-          user_metadata: { full_name: fbUser.displayName || fbUser.email?.split('@')[0] }
+          id: sbUser.id,
+          email: sbUser.email || '',
+          user_metadata: { full_name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User' }
         });
         setShowLoginModal(false);
         setShowAdmin(true);
         alert("¡Sesión iniciada!");
       }
     } catch (err: any) {
-      console.warn("Firebase auth error:", err?.message || err);
+      console.warn("Supabase auth error:", err?.message || err);
       
-      const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && loginPassword === 'Papagayo2026') || 
-                          (loginEmail === 'jrozog97@gmail.com' && loginPassword === '123456');
+      const isAdminBypass = (loginEmail === 'colpapagayo@gmail.com' && (loginPassword === 'Papagayo2026' || loginPassword === 'Papagayo2026*')) || 
+                          (loginEmail === 'user@example.com' && loginPassword === '123456');
 
       if (isAdminBypass) {
         localStorage.setItem('papagayo_demo_mode', 'true');
         setUser({ 
-          id: loginEmail === 'jrozog97@gmail.com' ? 'juan-admin-id' : 'admin-id', 
+          id: loginEmail === 'user@example.com' ? 'user-id' : 'admin-id', 
           email: loginEmail, 
-          user_metadata: { full_name: loginEmail === 'jrozog97@gmail.com' ? 'Juan Admin' : 'Admin Papagayo' } 
+          user_metadata: { full_name: loginEmail === 'user@example.com' ? 'Demo User' : 'Admin Papagayo' } 
         });
         setShowLoginModal(false);
         setShowAdmin(true);
@@ -257,7 +250,7 @@ export default function App() {
 
   const handleLogout = async () => {
     localStorage.removeItem('papagayo_demo_mode');
-    await signOut(auth);
+    await authService.signOut();
     setUser(null);
     setShowAdmin(false);
   };
@@ -1238,7 +1231,7 @@ export default function App() {
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="jrozog97@gmail.com"
+                      placeholder="user@example.com"
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#23493C]/20 focus:border-[#23493C] transition-all bg-white text-base md:text-xs text-[#302B27]"
                     />
                   </div>

@@ -1,6 +1,5 @@
 import React, { useState, FormEvent } from 'react';
-import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { dbService } from '../supabase';
 import { Loader2, Send } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -44,11 +43,11 @@ export const RequestForm: React.FC<RequestFormProps> = ({ initialProduct = '' })
     }
 
     try {
-      await addDoc(collection(db, 'product_requests'), {
+      await dbService.insertProductRequest({
         name,
         email,
         requestedProduct,
-        createdAt: serverTimestamp()
+        createdAt: Date.now()
       });
 
       setSuccess(true);
@@ -56,7 +55,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ initialProduct = '' })
       setEmail('');
       setRequestedProduct('');
     } catch (error) {
-      console.warn("Firestore insertion failed, saved locally instead:", error);
+      console.warn("Supabase insertion failed, saved locally instead:", error);
       setSuccess(true);
       setName('');
       setEmail('');

@@ -1,5 +1,4 @@
-import { db } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { dbService } from './supabase';
 
 const SEED_PRODUCTS = [
   {
@@ -80,10 +79,10 @@ export async function seedDatabase(userId: string) {
   try {
     for (let i = 0; i < SEED_PRODUCTS.length; i++) {
       const product = SEED_PRODUCTS[i];
-      await addDoc(collection(db, 'products'), {
+      await dbService.insertProduct({
         ...product,
         ownerId: userId,
-        createdAt: serverTimestamp()
+        createdAt: Date.now()
       });
     }
   } catch (error) {
