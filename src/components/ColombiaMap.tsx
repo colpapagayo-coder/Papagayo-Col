@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Map as MapIcon, Info, Play, Pause, ChevronRight, Headphones, Award, Compass, Sparkles } from 'lucide-react';
 import { getDepartmentCodeFromName, COLOMBIA_DEPARTMENTS } from '../departments';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface DepartmentDetail {
   name: string;
@@ -171,11 +172,17 @@ export function getStoryForId(id?: string | null): DepartmentDetail {
   const name = deptObj ? deptObj.name : "Colombie Secrète";
   return {
     name: name,
+    name_es: name,
     specialty: "Trésor Authentique Local",
+    specialty_es: "Tesoro Auténtico Local",
     artisanName: "Artisans & Producteurs de la région",
+    artisanName_es: "Artesanos y Productores de la región",
     technique: "Savoir-faire traditionnel d'origine",
+    technique_es: "Saber hacer tradicional de origen",
     story: `Découvrez la richesse culturelle et naturelle du département de ${name}. Entre traditions familiales séculaires, fiers caféiculteurs locaux et artisans créatifs, cette région incarne l'excellence d'un terroir authentique où chaque produit raconte une histoire unique de passion, d'art et de transmission humaine.`,
-    audioText: `Bienvenue à ${name}. Parcourez cette région magique à la rencontre de ses fiers artisans et producteurs locaux, qui partagent avec amour des créations authentiques nées des mains, de la terre et de la tradition.`
+    story_es: `Descubre la riqueza cultural y natural del departamento de ${name}. Entre tradiciones familiares seculares, orgullosos caficultores locales y artesanos creativos, esta región encarna la excelencia de un terruño auténtico donde cada producto cuenta una historia única de pasión, arte y transmisión humana.`,
+    audioText: `Bienvenue à ${name}. Parcourez cette région magique à la rencontre de ses fiers artisans et producteurs locaux, qui partagent avec amour des créations authentiques nées des mains, de la terre et de la tradition.`,
+    audioText_es: `Bienvenido a ${name}. Recorre esta región mágica para encontrar a sus orgullosos artesanos y productores locales, que comparten con amor creaciones auténticas nacidas de las manos, de la tierra y de la tradición.`
   };
 }
 
@@ -216,7 +223,7 @@ export function ColombiaMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [lang, setLang] = useState<'fr' | 'es'>('fr');
+  const { language: lang, t } = useLanguage();
   const [unlockedStamps, setUnlockedStamps] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('papagayo_unlocked_stamps');
@@ -276,7 +283,7 @@ export function ColombiaMap({
     }
   }, []);
 
-  const startListening = (textToRead: string, languageCode: 'fr' | 'es' = 'fr') => {
+  const startListening = (textToRead: string, languageCode: string = 'fr') => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     
     // Safety cancel to reset standard state
@@ -286,7 +293,14 @@ export function ColombiaMap({
     setTimeout(() => {
       try {
         const utterance = new SpeechSynthesisUtterance(textToRead);
-        utterance.lang = languageCode === 'es' ? 'es-ES' : 'fr-FR';
+        
+        let targetLang = 'fr-FR';
+        if (languageCode === 'es') targetLang = 'es-ES';
+        if (languageCode === 'en') targetLang = 'en-US';
+        if (languageCode === 'de') targetLang = 'de-DE';
+        if (languageCode === 'it') targetLang = 'it-IT';
+        
+        utterance.lang = targetLang;
         
         const voices = window.speechSynthesis.getVoices();
         const preferredVoice = voices.find(v => v.lang.startsWith(languageCode));
@@ -470,6 +484,13 @@ export function ColombiaMap({
 
   const activeStory = activeDepartmentId ? getStoryForId(activeDepartmentId) : null;
 
+  const getLocalized = (field: keyof DepartmentDetail) => {
+    if (!activeStory) return '';
+    if (lang === 'fr') return activeStory[field];
+    const esField = `${field}_es` as keyof DepartmentDetail;
+    return activeStory[esField] || activeStory[field];
+  };
+
   return (
     <div ref={containerRef} className="relative w-full flex flex-col items-center">
       {/* Exquisite Colombia Map Brand Header */}
@@ -477,39 +498,12 @@ export function ColombiaMap({
         <div className="w-full text-left mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-[#8B5E34] block mb-1">
-              Sourcing & Communautés
+              {t('sourcingCommunities')}
             </span>
-            <h2 className="text-2xl font-bold font-display text-[#302B27]">La Colombie des Origines</h2>
+            <h2 className="text-2xl font-bold font-display text-[#302B27]">{t('ourOrigins')}</h2>
             <p className="text-xs text-[#76736A] mt-1 leading-relaxed max-w-lg">
-              {lang === 'es' 
-                ? "Explora los territorios, las etnias y las sabidurías tradicionales que dan vida al café de origen y artesanía premium. ¡Haz clic en las regiones doradas en el mapa!"
-                : "Explorez les territoires, les communautés et les savoir-faire qui donnent vie à nos cafés et à nos créations artisanales. Cliquez sur une région dorée  !"
-              }
+              {t('heroSubtitle')}
             </p>
-          </div>
-          
-          {/* Elegant Bilingual Switcher */}
-          <div className="inline-flex items-center gap-1.5 p-1 bg-[#EFEBE0]/60 backdrop-blur rounded-xl border border-white self-start sm:self-auto shadow-xs">
-            <button
-              onClick={() => setLang('fr')}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                lang === 'fr' 
-                  ? 'bg-[#23493C] text-white shadow-sm' 
-                  : 'text-[#76736A] hover:bg-white/40'
-              }`}
-            >
-              FR 🇫🇷
-            </button>
-            <button
-              onClick={() => setLang('es')}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                lang === 'es' 
-                  ? 'bg-[#23493C] text-white shadow-sm' 
-                  : 'text-[#76736A] hover:bg-white/40'
-              }`}
-            >
-              ES 🇪🇸
-            </button>
           </div>
         </div>
       )}
@@ -518,7 +512,7 @@ export function ColombiaMap({
         <div className="absolute inset-x-0 top-[200px] flex flex-col items-center justify-center z-10 animate-pulse">
           <div className="border-4 border-[#23493C]/10 border-t-[#23493C] rounded-full animate-spin mb-3 w-10 h-10"></div>
           <p className="text-xs text-[#76736A] font-medium font-sans">
-            {lang === 'es' ? "Cargando el territorio colombiano..." : "Chargement du territoire..."}
+            {t('loadingMap')}
           </p>
         </div>
       )}
@@ -530,7 +524,7 @@ export function ColombiaMap({
         {!compact && (
           <div className="absolute top-2 left-2 hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-white/50 backdrop-blur rounded-xl border border-white/80 text-[10px] font-sans font-bold text-[#76736A] shadow-xs uppercase tracking-wider">
             <Headphones className="w-3.5 h-3.5 text-[#8B5E34]" />
-            <span>{lang === 'es' ? "Interactivo • Audio" : "Interactive • Audio"}</span>
+            <span>{t('interactiveAudio')}</span>
           </div>
         )}
 
@@ -552,15 +546,15 @@ export function ColombiaMap({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-[#23493C]/5">
             <div>
               <div className="text-[9px] uppercase font-extrabold tracking-widest text-[#8B5E34]">
-                {lang === 'es' ? activeStory.specialty_es || activeStory.specialty : activeStory.specialty}
+                {getLocalized('specialty')}
               </div>
               <h3 className="font-display text-xl font-bold text-[#302B27] mt-0.5">
-                {lang === 'es' ? activeStory.name_es || activeStory.name : activeStory.name}
+                {getLocalized('name')}
               </h3>
             </div>
             <div className="inline-flex items-center space-x-1 px-3 py-1 bg-[#23493C]/5 border border-[#23493C]/10 text-[#23493C] rounded-full text-[10px] font-semibold self-start sm:self-auto uppercase tracking-wide">
               <MapIcon className="w-3.5 h-3.5 mr-1" />
-              <span>{lang === 'es' ? "Origen Geográfico" : "Géo-Origine"}</span>
+              <span>{t('geoOrigin')}</span>
             </div>
           </div>
 
@@ -572,13 +566,10 @@ export function ColombiaMap({
               </div>
               <div>
                 <span className="text-[9px] uppercase font-black text-[#8B5E34] tracking-widest block">
-                  {lang === 'es' ? "🎖️ ¡Sello de Origen Desbloqueado!" : "🎖️ Sceau d'Origine Débloqué !"}
+                  {t('stampUnlocked')}
                 </span>
                 <p className="text-[10px] text-[#76736A] mt-0.5 leading-normal">
-                  {lang === 'es' 
-                    ? `Este origen histórico de ${activeStory.name_es || activeStory.name} ha sido registrado exitosamente en tu Pasaporte de Colección.` 
-                    : `Cette origine historique de ${activeStory.name} a été enregistrée avec succès dans votre Passeport de Collection.`
-                  }
+                  {t('stampDescPrefix')} {getLocalized('name')} {t('stampDescSuffix')}
                 </p>
               </div>
             </div>
@@ -588,25 +579,25 @@ export function ColombiaMap({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-3.5 p-3 rounded-2xl bg-[#EFEBE0]/40 border border-white">
             <div>
               <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">
-                {lang === 'es' ? "Creadores asociados" : "Créateurs associés"}
+                {t('associatedProducers')}
               </span>
               <span className="text-xs font-semibold text-[#302B27]">
-                {lang === 'es' ? activeStory.artisanName_es || activeStory.artisanName : activeStory.artisanName}
+                {getLocalized('artisanName')}
               </span>
             </div>
             <div>
               <span className="text-[9px] uppercase font-bold text-[#8B5E34] block">
-                {lang === 'es' ? "Saber-Hacer / Técnica" : "Savoir-faire / Technique"}
+                {t('knowHow')}
               </span>
               <span className="text-xs font-semibold text-[#302B27]">
-                {lang === 'es' ? activeStory.technique_es || activeStory.technique : activeStory.technique}
+                {getLocalized('technique')}
               </span>
             </div>
           </div>
 
           {/* Narrative Story */}
           <p className="text-xs lg:text-sm text-[#76736A] leading-relaxed italic my-3 bg-white/40 p-3 rounded-xl border border-black/5">
-            "{lang === 'es' ? activeStory.story_es || activeStory.story : activeStory.story}"
+            "{getLocalized('story')}"
           </p>
 
           {/* Play/Pause controls with voice synthesizer & scrolling action */}
@@ -617,7 +608,7 @@ export function ColombiaMap({
                   if (isPlaying) {
                     stopListening();
                   } else {
-                    const audioText = lang === 'es' ? activeStory.audioText_es || activeStory.audioText : activeStory.audioText;
+                    const audioText = getLocalized('audioText');
                     startListening(audioText, lang);
                   }
                 }}
@@ -626,10 +617,7 @@ export function ColombiaMap({
                     ? 'bg-[#8B5E34] text-white hover:scale-105 shadow-[#8B5E34]/20' 
                     : 'bg-[#23493C] text-white hover:bg-[#1C3A30] hover:scale-105 shadow-[#23493C]/10'
                 }`}
-                title={isPlaying 
-                  ? (lang === 'es' ? "Pausar narración" : "Mettre en pause") 
-                  : (lang === 'es' ? "Escuchar historia" : "Écouter l'histoire")
-                }
+                title={isPlaying ? t('pauseAudio') : t('listenToHistory')}
               >
                 {isPlaying ? (
                   <Pause className="w-4 h-4 fill-current animate-pulse" />
@@ -644,18 +632,15 @@ export function ColombiaMap({
                     <>
                       <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
                       <span className="text-red-600 animate-pulse">
-                        {lang === 'es' ? "NARRACIÓN EN CURSO..." : "ÉCOUTE EN COURS..."}
+                        {t('audioPlaying')}
                       </span>
                     </>
                   ) : (
-                    lang === 'es' ? "Escuchar Historia con IA" : "Écouter l'Histoire"
+                    t('listenToHistoryAI')
                   )}
                 </div>
                 <div className="text-[9px] text-[#76736A] uppercase font-medium tracking-wide">
-                  {isPlaying 
-                    ? (lang === 'es' ? "Narradora IA en Español" : "IA de Narration en Français") 
-                    : (lang === 'es' ? "Haz clic para orar y escuchar" : "Cliquez sur play pour entendre l'histoire")
-                  }
+                  {isPlaying ? t('aiNarrator') : t('clickToPlay')}
                 </div>
               </div>
 
@@ -681,7 +666,7 @@ export function ColombiaMap({
               }}
               className="px-4 py-2 bg-[#23493C]/5 hover:bg-[#23493C] border border-[#23493C]/20 hover:border-[#23493C] text-[#23493C] hover:text-white text-[10px] font-extrabold uppercase tracking-widest rounded-xl transition-all duration-300 cursor-pointer flex items-center self-start sm:self-auto"
             >
-              <span>{lang === 'es' ? "Ver Productos" : "Trésors régionaux"}</span>
+              <span>{t('viewProducts')}</span>
               <ChevronRight className="w-3.5 h-3.5 ml-1" />
             </button>
           </div>
@@ -700,13 +685,10 @@ export function ColombiaMap({
               </div>
               <div>
                 <h4 className="font-display text-sm font-bold text-[#302B27] uppercase tracking-wide">
-                  {lang === 'es' ? "Pasaporte de Sourcing Colombiano" : "Passeport de Collection d'Origine"}
+                  {t('passportTitle')}
                 </h4>
                 <p className="text-[10px] text-[#76736A] mt-0.5">
-                  {lang === 'es' 
-                    ? "¡Toca las regiones y pines en el croquis arriba para revelar la historia y desbloquear sellos!" 
-                    : "Cliquez sur les régions et tampons sur le croquis de la carte ci-dessus pour tout débloquer !"
-                  }
+                  {t('passportDesc')}
                 </p>
               </div>
             </div>
@@ -714,12 +696,12 @@ export function ColombiaMap({
             {/* Rank Badge */}
             <span className="px-2.5 py-1 bg-[#23493C]/5 border border-[#23493C]/10 text-[9px] font-extrabold uppercase tracking-widest text-[#23493C] rounded-lg self-start sm:self-auto">
               {unlockedStamps.length <= 1 
-                ? (lang === 'es' ? "Novicio 🗺️" : "Novice 🗺️")
+                ? t('rankNovice')
                 : unlockedStamps.length <= 3 
-                  ? (lang === 'es' ? "Viajero 🏔️" : "Voyageur 🏔️") 
+                  ? t('rankTraveler') 
                   : unlockedStamps.length < 5 
-                    ? (lang === 'es' ? "Coleccionista 🏺" : "Collectionneur 🏺") 
-                    : (lang === 'es' ? "Conservador 🏆" : "Conservateur 🏆")
+                    ? t('rankCollector') 
+                    : t('rankCurator')
               }
             </span>
           </div>
@@ -754,7 +736,7 @@ export function ColombiaMap({
                         ? 'border-[#8B5E34]/30 bg-white/60 hover:bg-white hover:border-[#8B5E34]/60' 
                         : 'border-dashed border-slate-200 opacity-45 grayscale hover:opacity-75 hover:grayscale-0 bg-[#EFEBE0]/20'
                   }`}
-                  title={`${st.name} - ${lang === 'es' ? st.specialty_es : st.specialty} (${lang === 'es' ? "¡Haz clic para ver!" : "Cliquez pour voir !"})`}
+                  title={`${st.name} - ${lang === 'fr' ? st.specialty : (st.specialty_es || st.specialty)} (${t('clickToView')})`}
                 >
                   {/* Circle Stamp */}
                   <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-lg shadow-inner border border-white/60 transition-transform duration-300 group-hover:rotate-12 ${
@@ -782,10 +764,7 @@ export function ColombiaMap({
           {/* Stamps Progression Status */}
           <div className="flex items-center justify-between mt-3.5 pt-3 border-t border-[#8B5E34]/10">
             <span className="text-[10px] text-[#76736A] font-medium">
-              {lang === 'es' 
-                ? `Progreso: ${unlockedStamps.filter(uid => ["CO-QUI","CO-LAG","CO-VAC","CO-COR","CO-BOL"].includes(uid)).length} de 5 regiones coleccionables registradas` 
-                : `Progression : ${unlockedStamps.filter(uid => ["CO-QUI","CO-LAG","CO-VAC","CO-COR","CO-BOL"].includes(uid)).length} sur 5 tampons de collection débloqués`
-              }
+              {unlockedStamps.filter(uid => ["CO-QUI","CO-LAG","CO-VAC","CO-COR","CO-BOL"].includes(uid)).length} / 5 {t('progressUnlocked')}
             </span>
 
             {/* Clear Stamps button */}
@@ -796,12 +775,12 @@ export function ColombiaMap({
                     onClick={() => setShowResetConfirm(true)}
                     className="text-[10px] font-bold text-red-600 hover:text-red-700 hover:underline cursor-pointer transition-all uppercase tracking-wider"
                   >
-                    {lang === 'es' ? "Reiniciar" : "Réinitialiser"}
+                    {t('resetProgress')}
                   </button>
                 ) : (
                   <div className="flex items-center gap-2 animate-fade-in bg-red-50 px-2 py-1 rounded-lg border border-red-200">
                     <span className="text-[9px] font-medium text-red-700">
-                      {lang === 'es' ? "¿Seguro?" : "Sûr ?"}
+                      {t('resetConfirm')}
                     </span>
                     <button
                       onClick={() => {
@@ -811,13 +790,13 @@ export function ColombiaMap({
                       }}
                       className="px-1.5 py-0.5 bg-red-600 text-[8px] font-black text-white uppercase rounded hover:bg-red-700 transition cursor-pointer"
                     >
-                      {lang === 'es' ? "Sí" : "Oui"}
+                      {t('yes')}
                     </button>
                     <button
                       onClick={() => setShowResetConfirm(false)}
                       className="px-1.5 py-0.5 bg-slate-200 text-[8px] font-black text-slate-700 uppercase rounded hover:bg-slate-300 transition cursor-pointer"
                     >
-                      {lang === 'es' ? "No" : "Non"}
+                      {t('no')}
                     </button>
                   </div>
                 )}

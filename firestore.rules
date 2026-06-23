@@ -29,6 +29,15 @@ service cloud.firestore {
         && data.createdAt is number;
     }
 
+    // Validation Blueprint for Product Request
+    function isValidProductRequest(data) {
+      return data.keys().hasAll(['name', 'email', 'requestedProduct', 'createdAt'])
+        && data.keys().size() == 4
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
+        && data.requestedProduct is string && data.requestedProduct.size() > 0 && data.requestedProduct.size() <= 5000;
+    }
+
     match /products/{productId} {
       // Products are publicly readable
       allow get: if true;
@@ -45,6 +54,14 @@ service cloud.firestore {
                     && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'base64Image', 'departmentCode']);
                     
       allow delete: if isAdmin() && existing().ownerId == request.auth.uid;
+    }
+
+    match /product_requests/{requestId} {
+      allow create: if isValidId(requestId)
+                    && isValidProductRequest(incoming())
+                    && incoming().createdAt == request.time;
+      
+      allow get, list, delete: if true;
     }
   }
 }

@@ -34,6 +34,30 @@
         }
       },
       "required": ["name", "description", "departmentCode", "ownerId", "base64Image"]
+    },
+    "ProductRequest": {
+      "title": "ProductRequest",
+      "description": "Represents a customer request/suggestion for a product.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the person making the suggestion"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the person making the suggestion"
+        },
+        "requestedProduct": {
+          "type": "string",
+          "description": "Description of the product they are looking for"
+        },
+        "createdAt": {
+          "type": "object",
+          "description": "Server timestamp of creation"
+        }
+      },
+      "required": ["name", "email", "requestedProduct", "createdAt"]
     }
   },
   "firestore": {
@@ -42,6 +66,12 @@
         "$ref": "#/entities/Product"
       },
       "description": "Collection of all products."
+    },
+    "product_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/ProductRequest"
+      },
+      "description": "Collection of client product suggestions."
     }
   }
 }

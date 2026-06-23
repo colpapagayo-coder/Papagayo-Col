@@ -502,6 +502,8 @@ export default function App() {
                   <option value="en">EN</option>
                   <option value="es">ES</option>
                   <option value="fr">FR</option>
+                  <option value="de">DE</option>
+                  <option value="it">IT</option>
                 </select>
               </div>
 
@@ -577,7 +579,7 @@ export default function App() {
                 <div className="py-8 px-6 flex flex-col space-y-6">
                   {/* Deliver country selection on mobile menu */}
                   <div className="flex flex-col space-y-2">
-                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">Pays de livraison</span>
+                    <span className="text-[10px] uppercase tracking-widest text-[#8B5E34] font-bold pb-1 border-b border-black/5">{t('deliveryCountryMobile')}</span>
                     <div className="flex items-center bg-white/80 border border-black/10 rounded-xl px-3 py-1 w-full shadow-sm">
                       <Globe className="w-4 h-4 text-[#8B5E34] mr-2" />
                       <select 
@@ -633,6 +635,8 @@ export default function App() {
                         <option value="en">Language: EN</option>
                         <option value="es">Idioma: ES</option>
                         <option value="fr">Langue: FR</option>
+                        <option value="de">Sprache: DE</option>
+                        <option value="it">Lingua: IT</option>
                       </select>
                     </div>
                   </div>
@@ -695,7 +699,7 @@ export default function App() {
               {/* Subtle upper tag */}
               <div className="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-[#DFDAC8] text-xs font-semibold tracking-wider uppercase mb-6">
                 <Sparkles className="w-3 h-3 text-[#E3DCB9]" />
-                <span>Amérique latine & Café d'origine colombienne</span>
+                <span>{t('latamCoffee')}</span>
               </div>
 
               <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-[4.2rem] font-bold tracking-tight text-white leading-[1.08] mb-6">
@@ -726,15 +730,15 @@ export default function App() {
               <div className="mt-12 pt-8 border-t border-white/10 w-full grid grid-cols-3 gap-4 text-left">
                 <div>
                   <div className="text-xl md:text-2xl font-display font-medium text-[#E3DCB9]">100%</div>
-                  <div className="text-xs md:text-sm text-gray-300">Traçabilité Origine</div>
+                  <div className="text-xs md:text-sm text-gray-300">{t('traceability')}</div>
                 </div>
                 <div>
-                  <div className="text-xl md:text-2xl font-display font-medium text-[#E3DCB9]">Direct</div>
-                  <div className="text-xs md:text-sm text-gray-300">Producteur-Table</div>
+                  <div className="text-xl md:text-2xl font-display font-medium text-[#E3DCB9]">{language === 'en' ? 'Direct' : language === 'es' ? 'Directo' : 'Direct'}</div>
+                  <div className="text-xs md:text-sm text-gray-300">{t('directToTable')}</div>
                 </div>
                 <div>
-                  <div className="text-xl md:text-2xl font-display font-medium text-[#E3DCB9]">4 Pays</div>
-                  <div className="text-xs md:text-sm text-gray-300">Hub logistique UE</div>
+                  <div className="text-xl md:text-2xl font-display font-medium text-[#E3DCB9]">{language === 'es' ? '4 Países' : language === 'en' ? '4 Countries' : '4 Pays'}</div>
+                  <div className="text-xs md:text-sm text-gray-300">{t('euLogistics')}</div>
                 </div>
               </div>
             </div>
@@ -880,7 +884,7 @@ export default function App() {
               <div className="md:hidden flex items-center justify-between bg-white/50 border border-white/80 rounded-3xl p-4 shadow-sm mb-6">
                 <div className="flex items-center space-x-2">
                   <Map className="w-4 h-4 text-[#8B5E34]" />
-                  <span className="text-sm font-semibold text-[#302B27]">Pays de livraison :</span>
+                  <span className="text-sm font-semibold text-[#302B27]">{t('deliveryCountry')}</span>
                 </div>
                 <select 
                   value={deliveryCountry}
@@ -899,7 +903,7 @@ export default function App() {
                   <p className="text-sm text-[#76736A] mt-1">{t('priceVariationMsg')}</p>
                 </div>
                 <span className="px-3.5 py-1 bg-[#23493C]/5 text-[#23493C] text-xs font-bold uppercase rounded-full tracking-wider">
-                  {filteredProducts.length} Merveilles
+                  {filteredProducts.length} {t('wonders')}
                 </span>
               </div>
 
@@ -1134,8 +1138,8 @@ export default function App() {
               <div>
                 <h4 className="font-display text-white text-sm font-semibold uppercase tracking-wider mb-6">Contact & Sourcing</h4>
                 <ul className="space-y-4 text-sm">
-                  <li className="text-gray-400">Hub d'expédition : <span className="text-white">Paris-Bercy, France</span></li>
-                  <li className="text-gray-400">Relations producteurs : <span className="text-white">Medellín & Cali, CO</span></li>
+                  <li className="text-gray-400">{t('footerLogisticsHub')} <span className="text-white">Paris-Bercy, France</span></li>
+                  <li className="text-gray-400">{t('footerProducers')} <span className="text-white">Medellín & Cali, CO</span></li>
                   <li><a href="mailto:hola@papagayo-direct.com" className="hover:text-white text-[#DFDAC8] border-b border-dashed border-[#DFDAC8]/40 pb-0.5 transition-colors">hola@papagayo-direct.com</a></li>
                 </ul>
               </div>
@@ -1145,16 +1149,16 @@ export default function App() {
             {/* Bottom Credits Block */}
             <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
-                <span>© 2026 Papagayo Inc. Tous droits réservés.</span>
+                <span>{t('footerRights')}</span>
                 <span className="hidden sm:inline text-white/5">|</span>
-                <span className="hover:text-white transition-colors cursor-pointer">{language === 'es' ? 'Condiciones generales de importación' : language === 'en' ? 'General Import Conditions' : 'Conditions générales d\'importation'}</span>
+                <span className="hover:text-white transition-colors cursor-pointer">{t('footerTerms')}</span>
                 <span className="hidden sm:inline text-white/5">|</span>
-                <span className="hover:text-white transition-colors cursor-pointer">{language === 'es' ? 'Política de privacidad' : language === 'en' ? 'Privacy Policy' : 'Politique de confidentialité'}</span>
+                <span className="hover:text-white transition-colors cursor-pointer">{t('footerPrivacy')}</span>
               </div>
               
               <div className="mt-4 sm:mt-0 font-mono text-[10px] tracking-widest text-[#E3DCB9]/40 flex items-center space-x-1 uppercase">
                 <Coffee className="w-3 h-3 text-[#E3DCB9]/30 mr-1" />
-                <span>{language === 'es' ? 'Creado para conocedores europeos' : language === 'en' ? 'Crafted for european connoisseurs' : 'Crafted for european connoisseurs'}</span>
+                <span>{t('footerCreated')}</span>
               </div>
             </div>
 

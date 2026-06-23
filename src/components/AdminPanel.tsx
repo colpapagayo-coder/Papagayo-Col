@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useLanguage } from '../contexts/LanguageContext';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -58,6 +59,7 @@ export function AdminPanel({
   user?: any;
   onClose?: () => void;
 }) {
+  const { t, language } = useLanguage();
   // Tabs State
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'pricing' | 'suggestions'>('products');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -70,6 +72,7 @@ export function AdminPanel({
   const [base64Image, setBase64Image] = useState<string | null>(null);
   const [extraImages, setExtraImages] = useState<string[]>([]);
   const [basePrice, setBasePrice] = useState('15.00'); // Clean simplified base price (€)
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
   // Track existing product update mode
@@ -111,16 +114,18 @@ export function AdminPanel({
 
     // 2. Global Country pricing load
     const savedPricing = localStorage.getItem('papagayo_countries_pricing');
+    let loadedPricing = DEFAULT_COUNTRY_PRICING;
     if (savedPricing) {
       try {
-        setCountryPricing(JSON.parse(savedPricing));
+        loadedPricing = JSON.parse(savedPricing);
       } catch {
-        setCountryPricing(DEFAULT_COUNTRY_PRICING);
+        loadedPricing = DEFAULT_COUNTRY_PRICING;
       }
     } else {
-      setCountryPricing(DEFAULT_COUNTRY_PRICING);
       localStorage.setItem('papagayo_countries_pricing', JSON.stringify(DEFAULT_COUNTRY_PRICING));
     }
+    setCountryPricing(loadedPricing);
+    setSelectedCountries(loadedPricing.map(c => c.code));
 
     // Fetch existing data
     fetchAdminProducts();
@@ -293,8 +298,9 @@ export function AdminPanel({
       }
 
       const numericBasePrice = parseFloat(basePrice) || 0;
-      // Generate calculated pricing for each of the 4 countries based on country configs!
-      const generatedPrices = computeCountryPrices(numericBasePrice, countryPricing);
+      // Generate calculated pricing for each of the selected countries based on country configs!
+      const activeConfigs = countryPricing.filter(c => selectedCountries.includes(c.code));
+      const generatedPrices = computeCountryPrices(numericBasePrice, activeConfigs);
 
       const now = Date.now();
       const productCategoryName = categories.find(c => c.id === selectedCategory)?.name || 'Général';
@@ -395,6 +401,7 @@ export function AdminPanel({
     setDepartmentId(prod.departmentCode || 'CO-QUI');
     setBase64Image(prod.base64Image);
     setExtraImages(prod.additionalImages || []);
+    setSelectedCountries(Object.keys(prod.prices || {}));
     
     // Set base price from product if present, or fallback from FR price
     const initialPriceValue = prod.basePrice !== undefined ? String(prod.basePrice) : String(prod.prices?.FR || '15.00');
@@ -415,6 +422,7 @@ export function AdminPanel({
     setExtraImages([]);
     setDepartmentId('CO-QUI');
     setBasePrice('15.00');
+    setSelectedCountries(countryPricing.map(c => c.code));
   };
 
   // Create or Update Category Submit Handler
@@ -506,10 +514,12 @@ export function AdminPanel({
         const revisedProducts = localProducts.map(p => {
           // If product defines a basePrice, multiply it correctly, otherwise use fallback of previous FR price
           const sourceBase = p.basePrice !== undefined ? p.basePrice : (p.prices?.FR || 15.0);
+          const activeKeys = Object.keys(p.prices || {});
+          const activeConfigs = countryPricing.filter(c => activeKeys.includes(c.code));
           return {
             ...p,
             basePrice: sourceBase,
-            prices: computeCountryPrices(sourceBase, countryPricing)
+            prices: activeConfigs.length > 0 ? computeCountryPrices(sourceBase, activeConfigs) : computeCountryPrices(sourceBase, countryPricing)
           };
         });
         localStorage.setItem('papagayo_local_products', JSON.stringify(revisedProducts));
@@ -601,11 +611,11 @@ export function AdminPanel({
           <div>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-2xl sm:text-3xl font-display font-bold text-[#302B27] tracking-tight flex flex-wrap items-center gap-2">
-                <span>Espace Administrateur</span>
+                <span>{t('adminTitle')}</span>
                 <span className="text-[10px] bg-[#23493C] text-[#DFDAC8] px-2.5 py-1 rounded-full font-sans tracking-widest uppercase font-bold">PAPAGAYO DIRECT</span>
               </h2>
             </div>
-            <p className="text-xs sm:text-sm text-[#76736A] mt-1">Gérez le catalogue, connectez les pays de livraison et administrez les catégories colombiennes.</p>
+            <p className="text-xs sm:text-sm text-[#76736A] mt-1">{t('adminDesc')}</p>
           </div>
           
           {onClose && (
@@ -615,126 +625,99 @@ export function AdminPanel({
               className="px-4 py-2 bg-[#8B5E34]/10 hover:bg-[#8B5E34]/20 text-[#8B5E34] border border-[#8B5E34]/20 font-semibold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center space-x-1 hover:scale-[1.02] active:scale-[0.98] self-start md:self-auto"
             >
               <span>✕</span>
-              <span>Cerrar Panel de Control</span>
+              <span>{t('closePanel')}</span>
             </button>
           )}
         </div>
         
-        {/* Modern Interactive Hamburger Space Menu Controller */}
+        {/* Responsive Tab Navigation */}
         <div className="relative w-full z-30 font-sans">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#23493C]/5 border border-[#23493C]/10 p-3 sm:p-4 rounded-2xl">
+          {/* Mobile Hamburger Trigger */}
+          <div className="md:hidden flex items-center justify-between gap-3 bg-[#23493C]/5 border border-[#23493C]/10 p-3 rounded-2xl mb-4">
             <button
               type="button"
               onClick={() => setMenuOpen(!menuOpen)}
-              className="flex items-center justify-between gap-3 px-5 py-3 bg-[#23493C] hover:bg-[#1C3A30] text-[#FAF8F5] rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-md cursor-pointer hover:scale-[1.01] active:scale-[0.99] self-start"
+              className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#23493C] text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm w-full"
             >
               <span className="flex items-center gap-2">
-                {menuOpen ? <X className="w-4 h-4 text-amber-300 animate-spin-once shrink-0" /> : <Menu className="w-4 h-4 text-amber-300 shrink-0" />}
-                <span>Naviguer dans les Espaces</span>
-              </span>
-              <ChevronDown className={`w-4 h-4 text-amber-300 transition-transform duration-300 shrink-0 ${menuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {/* Real-time Indicator Chip of the Active Admin Space */}
-            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-150 rounded-xl shadow-2xs self-stretch sm:self-auto justify-center">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <div className="text-left font-sans leading-none">
-                <span className="block text-[8px] uppercase tracking-wider text-gray-400 font-bold">Espace Actif</span>
-                <span className="block text-[11px] font-black text-[#23493C] uppercase tracking-wide mt-0.5">
-                  {activeTab === 'products' ? '📦 Produits & Inventaire' : 
-                   activeTab === 'categories' ? '🏷️ Gestion des Catégories' : 
-                   activeTab === 'pricing' ? '💶 Grille Tarifaire par Pays' : 
-                   `📥 Demandes Client (${suggestions.length})`}
+                {menuOpen ? <X className="w-4 h-4 text-amber-300" /> : <Menu className="w-4 h-4 text-amber-300" />}
+                <span>
+                  {activeTab === 'products' ? t('tabProducts') : 
+                   activeTab === 'categories' ? t('tabCategories') : 
+                   activeTab === 'pricing' ? t('tabPricing') : 
+                   t('tabRequests')}
                 </span>
-              </div>
-            </div>
+              </span>
+              <ChevronDown className={cn("w-4 h-4 text-amber-300 transition-transform", menuOpen && "rotate-180")} />
+            </button>
           </div>
 
-          {/* Expanded Hamburger Overlays Menu with Premium Description cards */}
-          {menuOpen && (
-            <div className="absolute top-[108%] left-0 right-0 z-40 bg-[#FAF9F5] border-2 border-[#23493C]/25 rounded-3xl p-4 shadow-[0_25px_60px_rgba(0,0,0,0.18)] grid grid-cols-1 md:grid-cols-2 gap-3 animate-none">
-              <button
-                type="button"
-                onClick={() => { setActiveTab('products'); setMenuOpen(false); }}
-                className={cn(
-                  "p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-start gap-3.5 group",
-                  activeTab === 'products' 
-                    ? "bg-[#23493C] text-white border-transparent shadow-lg shadow-[#23493C]/10" 
-                    : "bg-white hover:bg-[#FAF9F5] text-[#302B27] border-gray-150 hover:border-[#23493C]/30"
-                )}
-              >
-                <div className={cn("p-2.5 rounded-xl shrink-0 transition-transform group-hover:scale-105", activeTab === 'products' ? "bg-white/10" : "bg-[#23493C]/5 text-[#23493C]")}>
-                  <Package className="w-5 h-5 text-amber-500" />
-                </div>
-                <div className="min-w-0">
-                  <span className="block text-xs uppercase font-extrabold tracking-wider">📦 Produits de Sourcing</span>
-                  <span className="block text-[10px] opacity-80 mt-0.5 leading-relaxed">Ajouter, modifier ou retirer les fiches produits et configurer la carte de traçabilité colombienne.</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setActiveTab('categories'); setMenuOpen(false); }}
-                className={cn(
-                  "p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-start gap-3.5 group",
-                  activeTab === 'categories' 
-                    ? "bg-[#23493C] text-white border-transparent shadow-lg shadow-[#23493C]/10" 
-                    : "bg-white hover:bg-[#FAF9F5] text-[#302B27] border-gray-150 hover:border-[#23493C]/30"
-                )}
-              >
-                <div className={cn("p-2.5 rounded-xl shrink-0 transition-transform group-hover:scale-105", activeTab === 'categories' ? "bg-white/10" : "bg-[#23493C]/5 text-[#23493C]")}>
-                  <Tag className="w-5 h-5 text-amber-500" />
-                </div>
-                <div className="min-w-0">
-                  <span className="block text-xs uppercase font-extrabold tracking-wider">🏷️ Catégories d'Origine</span>
-                  <span className="block text-[10px] opacity-80 mt-0.5 leading-relaxed">Administrer les types d'artisanat ou de spécialités (Cafés, Cacaos, Textiles Wayuu, Orfèvrerie).</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setActiveTab('pricing'); setMenuOpen(false); }}
-                className={cn(
-                  "p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-start gap-3.5 group",
-                  activeTab === 'pricing' 
-                    ? "bg-[#23493C] text-white border-transparent shadow-lg shadow-[#23493C]/10" 
-                    : "bg-white hover:bg-[#FAF9F5] text-[#302B27] border-gray-150 hover:border-[#23493C]/30"
-                )}
-              >
-                <div className={cn("p-2.5 rounded-xl shrink-0 transition-transform group-hover:scale-105", activeTab === 'pricing' ? "bg-white/10" : "bg-[#23493C]/5 text-[#23493C]")}>
-                  <Percent className="w-5 h-5 text-amber-500" />
-                </div>
-                <div className="min-w-0">
-                  <span className="block text-xs uppercase font-extrabold tracking-wider">💶 Grille Tarifaire & Multiplicateurs</span>
-                  <span className="block text-[10px] opacity-80 mt-0.5 leading-relaxed">Gérer les coefficients de transport, taxes douanières et majorations par pays d'Europe.</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setActiveTab('suggestions'); setMenuOpen(false); }}
-                className={cn(
-                  "p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-start gap-3.5 group relative",
-                  activeTab === 'suggestions' 
-                    ? "bg-[#23493C] text-white border-transparent shadow-lg shadow-[#23493C]/10" 
-                    : "bg-white hover:bg-[#FAF9F5] text-[#302B27] border-gray-150 hover:border-[#23493C]/30"
-                )}
-              >
-                <div className={cn("p-2.5 rounded-xl shrink-0 transition-transform group-hover:scale-105", activeTab === 'suggestions' ? "bg-white/10" : "bg-[#23493C]/5 text-[#23493C]")}>
-                  <Inbox className="w-5 h-5 text-amber-500" />
-                </div>
-                <div className="min-w-0">
-                  <span className="block text-xs uppercase font-extrabold tracking-wider">📥 Demandes d'Importation Client</span>
-                  <span className="block text-[10px] opacity-80 mt-0.5 leading-relaxed">Suivre les fiches de contact, demandes d'importation sur mesure pré-remplies par les clients.</span>
-                </div>
-                {suggestions.length > 0 && (
-                  <span className="absolute top-3.5 right-3.5 bg-amber-500 text-black font-extrabold text-[9px] px-2 py-0.5 rounded-full ring-2 ring-white">
-                    {suggestions.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
+          {/* Tab Menu - hidden on mobile unless open, flex on md+ */}
+          <div className={cn(
+            "md:flex flex-wrap items-center gap-2 border-b border-gray-200 pb-4",
+            menuOpen ? "flex flex-col items-stretch absolute top-full left-0 right-0 bg-white p-4 shadow-xl border rounded-2xl z-50 animate-in fade-in slide-in-from-top-4" : "hidden"
+          )}>
+            <button
+              type="button"
+              onClick={() => { setActiveTab('products'); setMenuOpen(false); }}
+              className={cn(
+                "px-4 py-3 md:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2",
+                activeTab === 'products'
+                  ? "bg-[#23493C] text-white shadow-md"
+                  : "bg-[#23493C]/5 text-[#302B27] hover:bg-[#23493C]/10 border border-transparent"
+              )}
+            >
+              <Package className="w-4 h-4" />
+              {t('tabProducts')}
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => { setActiveTab('categories'); setMenuOpen(false); }}
+              className={cn(
+                "px-4 py-3 md:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2",
+                activeTab === 'categories'
+                  ? "bg-[#23493C] text-white shadow-md"
+                  : "bg-[#23493C]/5 text-[#302B27] hover:bg-[#23493C]/10 border border-transparent"
+              )}
+            >
+              <Tag className="w-4 h-4" />
+              {t('tabCategories')}
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => { setActiveTab('pricing'); setMenuOpen(false); }}
+              className={cn(
+                "px-4 py-3 md:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2",
+                activeTab === 'pricing'
+                  ? "bg-[#23493C] text-white shadow-md"
+                  : "bg-[#23493C]/5 text-[#302B27] hover:bg-[#23493C]/10 border border-transparent"
+              )}
+            >
+              <Percent className="w-4 h-4" />
+              {t('tabPricing')}
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => { setActiveTab('suggestions'); setMenuOpen(false); }}
+              className={cn(
+                "px-4 py-3 md:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-2 relative",
+                activeTab === 'suggestions'
+                  ? "bg-[#23493C] text-white shadow-md"
+                  : "bg-[#23493C]/5 text-[#302B27] hover:bg-[#23493C]/10 border border-transparent"
+              )}
+            >
+              <Inbox className="w-4 h-4" />
+              {t('tabRequests')}
+              {suggestions.length > 0 && (
+                <span className="md:absolute md:-top-1.5 md:-right-1.5 ml-auto md:ml-0 w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm">
+                  {suggestions.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -747,7 +730,7 @@ export function AdminPanel({
             <h3 className="text-base sm:text-lg font-bold text-[#302B27] pb-2 border-b border-gray-100 flex items-center justify-between">
               <span className="flex items-center space-x-2">
                 {editingProduct ? <Pencil className="w-4 h-4 text-[#8B5E34]" /> : <Plus className="w-4 h-4 text-[#23493C]" />}
-                <span>{editingProduct ? `Modifier "${editingProduct.name}"` : 'Créer un Nouveau Produit Colombien'}</span>
+                <span>{editingProduct ? `${t('adminEditProduct')} "${editingProduct.name}"` : t('adminCreateProduct')}</span>
               </span>
               {editingProduct && (
                 <button 
@@ -756,7 +739,7 @@ export function AdminPanel({
                   className="text-xs font-semibold text-gray-500 hover:text-red-600 flex items-center gap-1 bg-gray-100 px-2.5 py-1 rounded-lg"
                 >
                   <Undo className="w-3 h-3" />
-                  Annuler la modification
+                  {t('adminCancelEdit')}
                 </button>
               )}
             </h3>
@@ -905,13 +888,13 @@ export function AdminPanel({
 
             {/* Simplified Single Price configuration */}
             <div className="bg-[#23493C]/5 border border-[#23493C]/10 rounded-2xl p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="space-y-1">
                   <label className="block text-[10px] sm:text-xs font-bold text-[#302B27] uppercase tracking-wider">
                     Prix de Base (€)
                   </label>
                   <p className="text-[10px] sm:text-[11px] text-gray-500 leading-snug">
-                    Spécifiez le prix de base d'origine. Les prix de chaque pays seront générés à l'enregistrement en appliquant les tarifs et multiplicateurs du menu de cobro.
+                    Spécifiez le prix de base d'origine. Sélectionnez les pays de livraison pour générer les prix locaux via les tarifs du menu de cobro.
                   </p>
                 </div>
                 <div className="relative rounded-xl shadow-xs w-36 shrink-0">
@@ -928,6 +911,51 @@ export function AdminPanel({
                     placeholder="15.00"
                     disabled={loading}
                   />
+                </div>
+              </div>
+
+              {/* Country Selection Checkboxes */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-[#302B27] uppercase tracking-wider mb-2">
+                  Pays de Livraison Disponibles
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {countryPricing.map((country) => {
+                    const isSelected = selectedCountries.includes(country.code);
+                    const calcPrice = ((parseFloat(basePrice) || 0) * country.multiplier) + country.surcharge;
+                    
+                    return (
+                      <label 
+                        key={country.code} 
+                        className={cn(
+                          "flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all bg-white",
+                          isSelected ? "border-[#23493C] ring-1 ring-[#23493C]/20" : "border-gray-200 opacity-60 hover:opacity-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedCountries(prev => [...prev, country.code]);
+                              } else {
+                                setSelectedCountries(prev => prev.filter(c => c !== country.code));
+                              }
+                            }}
+                            className="w-4 h-4 text-[#23493C] rounded border-gray-300 focus:ring-[#23493C]"
+                            disabled={loading}
+                          />
+                          <span className="text-xs font-semibold text-[#302B27]">{country.name}</span>
+                        </div>
+                        {isSelected && (
+                          <span className="text-xs font-bold text-[#8B5E34]">
+                            {calcPrice.toFixed(2)}€
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -956,7 +984,7 @@ export function AdminPanel({
               ) : (
                 <>
                   <Upload className="w-4 h-4 text-[#DFDAC8]" />
-                  <span>{editingProduct ? 'Mettre à jour le produit' : 'Publier et référencer le produit'}</span>
+                  <span>{editingProduct ? (language === 'es' ? 'Actualizar Producto' : 'Update Product') : (language === 'es' ? 'Publicar Producto' : 'Publish Product')}</span>
                 </>
               )}
             </button>
@@ -1053,7 +1081,7 @@ export function AdminPanel({
             <h3 className="text-base sm:text-lg font-bold text-[#302B27] pb-2 border-b border-gray-100 flex items-center justify-between">
               <span className="flex items-center space-x-2">
                 {editingCategory ? <Pencil className="w-4 h-4 text-[#8B5E34]" /> : <Plus className="w-4 h-4 text-[#8B5E34]" />}
-                <span>{editingCategory ? `Modifier "${editingCategory.name}"` : 'Créer une nouvelle Catégorie Commerciale'}</span>
+                <span>{editingCategory ? `${t('adminEditProduct')} "${editingCategory.name}"` : t('adminCreateCategory')}</span>
               </span>
               {editingCategory && (
                 <button 
@@ -1062,13 +1090,13 @@ export function AdminPanel({
                   className="text-xs font-semibold text-gray-500 hover:text-red-600 flex items-center gap-1 bg-gray-100 px-2.5 py-1 rounded-lg"
                 >
                   <Undo className="w-3 h-3" />
-                  Annuler la modification
+                  {t('adminCancelEdit')}
                 </button>
               )}
             </h3>
 
             <div>
-              <label className="block text-[10px] sm:text-xs font-bold text-[#302B27] uppercase tracking-wider mb-2">Nom de la Catégorie</label>
+              <label className="block text-[10px] sm:text-xs font-bold text-[#302B27] uppercase tracking-wider mb-2">{t('adminCategoryName')}</label>
               <input 
                 type="text"
                 required
@@ -1080,7 +1108,7 @@ export function AdminPanel({
             </div>
 
             <div>
-              <label className="block text-[10px] sm:text-xs font-bold text-[#302B27] uppercase tracking-wider mb-2">Description rapide</label>
+              <label className="block text-[10px] sm:text-xs font-bold text-[#302B27] uppercase tracking-wider mb-2">{t('adminCategoryDesc')}</label>
               <textarea 
                 value={catDesc}
                 onChange={(e) => setCatDesc(e.target.value)}
@@ -1095,14 +1123,14 @@ export function AdminPanel({
               className="w-full py-3 sm:py-4 bg-[#8B5E34] text-white font-semibold text-xs sm:text-sm hover:bg-[#724C28] rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-md shadow-[#8B5E34]/15"
             >
               {editingCategory ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              <span>{editingCategory ? 'Mettre à jour la Catégorie' : 'Créer la Catégorie'}</span>
+              <span>{editingCategory ? t('adminSaveCategory') : t('adminCreateCategory')}</span>
             </button>
           </form>
 
           {/* Categories List view */}
           <div className="space-y-4">
             <h3 className="text-base sm:text-lg font-bold text-[#302B27] pb-2 border-b border-gray-100">
-              Catégories en Activité ({categories.length})
+              {t('tabCategories')} ({categories.length})
             </h3>
             <div className="space-y-2.5 sm:space-y-3 max-h-[420px] overflow-y-auto pr-1">
               {categories.map((cat) => {
@@ -1235,7 +1263,7 @@ export function AdminPanel({
                 onClick={saveCountryPricingConfigs}
                 className="px-5 py-2.5 bg-[#23493C] hover:bg-[#1C3A30] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm hover:shadow"
               >
-                Mettre à jour les Tarifs Nationaux
+                {language === 'es' ? 'Actualizar Tarifas Nacionales' : 'Update National Rates'}
               </button>
             </div>
           </div>
